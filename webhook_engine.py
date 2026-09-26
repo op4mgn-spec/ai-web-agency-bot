@@ -58,25 +58,42 @@ def answer_callback_query(callback_query_id):
     except Exception:
         pass
 
+CACHED_WORKING_MODEL = None
+
+def get_working_models(key):
+    global CACHED_WORKING_MODEL
+    if CACHED_WORKING_MODEL:
+        return [CACHED_WORKING_MODEL]
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
+        r = requests.get(url, timeout=5)
+        data = r.json()
+        if "models" in data:
+            valid_models = []
+            for m in data["models"]:
+                name = m.get("name", "").replace("models/", "")
+                methods = m.get("supportedGenerationMethods", [])
+                if "generateContent" in methods:
+                    valid_models.append(name)
+            if valid_models:
+                print(f"✅ Discovered valid Gemini models for key: {valid_models}")
+                return valid_models
+    except Exception as e:
+        print(f"Error querying ListModels: {e}")
+    
+    return ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-2.5-flash']
+
 def safe_generate_ai(prompt, chat_id=None):
-    global GEMINI_API_KEY
+    global GEMINI_API_KEY, CACHED_WORKING_MODEL
     key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY or db.get_setting("GEMINI_API_KEY")
     if not key or key == "your_gemini_api_key_here":
         print("Gemini API Key is missing or default")
         return "", "Ключ Gemini API не настроен. Отправьте команду /setkey AIzaSy... для подключения."
 
+    models_to_try = get_working_models(key)
     errors = []
-    # Standard Gemini models order
-    models_to_try = [
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
-        'gemini-2.5-flash',
-        'gemini-3.8-flash',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-flash-latest'
-    ]
-    
+
     for model_name in models_to_try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
@@ -87,6 +104,7 @@ def safe_generate_ai(prompt, chat_id=None):
             if "candidates" in data and len(data["candidates"]) > 0:
                 parts = data["candidates"][0].get("content", {}).get("parts", [])
                 if parts and "text" in parts[0]:
+                    CACHED_WORKING_MODEL = model_name
                     return parts[0]["text"].strip(), None
             elif "error" in data:
                 err_msg = data['error'].get('message', str(data['error']))
@@ -96,7 +114,8 @@ def safe_generate_ai(prompt, chat_id=None):
             print(f"Gemini REST Exception ({model_name}): {e}")
             errors.append(f"{model_name}: {str(e)}")
             continue
-            
+
+    CACHED_WORKING_MODEL = None
     last_err = "; ".join(errors) if errors else "Неизвестная ошибка Gemini API"
     return "", last_err
 
