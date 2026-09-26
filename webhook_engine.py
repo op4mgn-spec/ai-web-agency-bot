@@ -60,14 +60,22 @@ def answer_callback_query(callback_query_id):
 
 def safe_generate_ai(prompt, chat_id=None):
     global GEMINI_API_KEY
-    key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
+    key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY or db.get_setting("GEMINI_API_KEY")
     if not key or key == "your_gemini_api_key_here":
         print("Gemini API Key is missing or default")
-        return "", "Ключ Gemini API не задан"
+        return "", "Ключ Gemini API не настроен. Отправьте команду /setkey AIzaSy... для подключения."
 
     errors = []
-    # Using official updated model names
-    models_to_try = ['gemini-3.8-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash-latest', 'gemini-1.5-pro-latest']
+    # Standard Gemini models order
+    models_to_try = [
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+        'gemini-2.5-flash',
+        'gemini-3.8-flash',
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-flash-latest'
+    ]
     
     for model_name in models_to_try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
@@ -212,7 +220,8 @@ def process_telegram_update(update_data):
                 new_key = parts[1].strip()
                 GEMINI_API_KEY = new_key
                 os.environ["GEMINI_API_KEY"] = new_key
-                send_telegram_message(chat_id, f"🔑 **Gemini API Key успешно сохранен и активирован!**\n\nКлюч: `{new_key[:8]}...{new_key[-4:]}`")
+                db.set_setting("GEMINI_API_KEY", new_key)
+                send_telegram_message(chat_id, f"🔑 **Gemini API Key успешно сохранен в базу данных и активирован!**\n\nКлюч: `{new_key[:8]}...{new_key[-4:]}`")
             else:
                 send_telegram_message(chat_id, "🔑 **Инструкция**: Отправьте команду в формате:\n`/setkey AIzaSyВашСкопированныйКлюч`")
             return

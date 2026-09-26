@@ -95,6 +95,14 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # System Settings Table (Persist API Keys & Config)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
     
     conn.commit()
     conn.close()
@@ -284,6 +292,27 @@ def get_incomplete_brief_leads():
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return rows
+
+def set_setting(key: str, value: str):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
+    conn.close()
+
+def get_setting(key: str, default: str = "") -> str:
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row else default
+    except Exception:
+        conn.close()
+        return default
 
 if __name__ == "__main__":
     init_db()
