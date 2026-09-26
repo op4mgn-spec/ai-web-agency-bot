@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import base64
 import requests
 import db
 from generator import generate_website_html
@@ -13,6 +14,53 @@ API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 # User state memory for brief steps
 user_states = {}
+
+def transcribe_voice_note(file_id: str) -> str:
+    global GEMINI_API_KEY, TELEGRAM_BOT_TOKEN
+    key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY or db.get_setting("GEMINI_API_KEY")
+    if not key:
+        return ""
+        
+    try:
+        # Step 1: Get Telegram file path
+        r = requests.get(f"{API_URL}/getFile?file_id={file_id}", timeout=5).json()
+        if not r.get("ok"):
+            return ""
+        file_path = r["result"]["file_path"]
+        
+        # Step 2: Download raw voice audio bytes
+        file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+        audio_bytes = requests.get(file_url, timeout=10).content
+        base64_audio = base64.b64encode(audio_bytes).decode('utf-8')
+
+        # Step 3: Call Gemini API multimodal audio endpoint
+        models_to_try = get_working_models(key)
+        for model_name in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {
+                            "inline_data": {
+                                "mime_type": "audio/ogg",
+                                "data": base64_audio
+                            }
+                        },
+                        {
+                            "text": "Расшифруй это голосовое сообщение от клиента на русском языке. Напиши только распознанный текст."
+                        }
+                    ]
+                }]
+            }
+            res = requests.post(url, json=payload, headers=headers, timeout=15).json()
+            if "candidates" in res and len(res["candidates"]) > 0:
+                parts = res["candidates"][0].get("content", {}).get("parts", [])
+                if parts and "text" in parts[0]:
+                    return parts[0]["text"].strip()
+    except Exception as e:
+        print(f"Error transcribing voice note: {e}")
+    return ""
 
 PERSONA_PROMPTS = {
     "Variant A (Консультант)": """
@@ -242,7 +290,14 @@ def process_telegram_update(update_data):
         text = msg.get("text", "").strip()
         if not text:
             if "voice" in msg:
-                text = "🎤 [Голосовое сообщение]"
+                file_id = msg["voice"]["file_id"]
+                send_telegram_message(chat_id, "🎧 *Распознаю голосовое сообщение...*")
+                transcribed = transcribe_voice_note(file_id)
+                if transcribed:
+                    text = transcribed
+                    send_telegram_message(chat_id, f"🎤 **Распознано**: «_{text}_»")
+                else:
+                    text = "🎤 [Голосовое сообщение]"
             elif "photo" in msg:
                 text = "📷 [Фотографическое изображение]"
             elif "document" in msg:
