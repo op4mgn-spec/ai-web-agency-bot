@@ -39,14 +39,17 @@ def answer_callback_query(callback_query_id):
     except Exception:
         pass
 
-def safe_generate_ai(prompt):
+def safe_generate_ai(prompt, chat_id=None):
     global GEMINI_API_KEY
     key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
     if not key or key == "your_gemini_api_key_here":
         print("Gemini API Key is missing or default")
-        return ""
-        
-    for model_name in ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-pro']:
+        return "", "Ключ Gemini API не задан"
+
+    errors = []
+    models_to_try = ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-2.5-flash']
+    
+    for model_name in models_to_try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
         headers = {"Content-Type": "application/json"}
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
@@ -56,13 +59,18 @@ def safe_generate_ai(prompt):
             if "candidates" in data and len(data["candidates"]) > 0:
                 parts = data["candidates"][0].get("content", {}).get("parts", [])
                 if parts and "text" in parts[0]:
-                    return parts[0]["text"].strip()
+                    return parts[0]["text"].strip(), None
             elif "error" in data:
-                print(f"Gemini API Error ({model_name}): {data['error'].get('message')}")
+                err_msg = data['error'].get('message', str(data['error']))
+                print(f"Gemini API Error ({model_name}): {err_msg}")
+                errors.append(f"{model_name}: {err_msg}")
         except Exception as e:
             print(f"Gemini REST Exception ({model_name}): {e}")
+            errors.append(f"{model_name}: {str(e)}")
             continue
-    return ""
+            
+    last_err = "; ".join(errors) if errors else "Неизвестная ошибка Gemini API"
+    return "", last_err
 
 def process_telegram_update(update_data):
     global GEMINI_API_KEY, ADMIN_TELEGRAM_ID
@@ -178,7 +186,6 @@ def process_telegram_update(update_data):
         # Admin Command to set Gemini API key directly from Telegram!
         if text.startswith("/setkey"):
             if not is_admin:
-                # If not admin, ignore command
                 return
             parts = text.split(maxsplit=1)
             if len(parts) > 1:
@@ -200,7 +207,7 @@ def process_telegram_update(update_data):
                 f"💬 Задайте мне любой вопрос в чат или нажмите кнопку ниже для заказа!"
             )
             if is_admin:
-                welcome += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.** Вы можете изменить ключ API командой `/setkey AIzaSy...`."
+                welcome += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.** Установить новый ключ: `/setkey AIzaSy...`."
 
             kbd = {"inline_keyboard": [
                 [{"text": "📝 Заполнить подробный бриф", "callback_data": "start_brief"}],
@@ -293,12 +300,17 @@ def process_telegram_update(update_data):
 
         # General Conversational Q&A via Gemini REST API
         prompt = f"{SYSTEM_SALES_PROMPT}\nВопрос клиента: '{text}'"
-        ai_ans = safe_generate_ai(prompt)
+        ai_ans, err_details = safe_generate_ai(prompt, chat_id)
 
         if ai_ans:
             db.log_chat_message(chat_id, "BOT", ai_ans, bot_variant)
             send_telegram_message(chat_id, ai_ans)
         else:
+            # Send exact diagnostic error to Admin @bers1q if Gemini API failed
+            if is_admin and err_details:
+                debug_msg = f"⚠️ **Отладка Gemini API**: Ошибка при вызове ИИ:\n`{err_details}`"
+                send_telegram_message(chat_id, debug_msg)
+
             fallback = (
                 f"Спасибо за вопрос! Как эксперт по сайтам, скажу: мы создаем продающие лендинги под ключ за 24 часа "
                 f"за 9 900 руб. Хотите запустить расчет проекта? Заполните бриф по кнопке ниже!"
