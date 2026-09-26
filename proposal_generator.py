@@ -76,7 +76,7 @@ def generate_commercial_proposal(brief_data: dict, client_id: str) -> str:
         </div>
 
         <div class="footer">
-            <p>AI Web Studio © 2026. Связь с руководителем: @bers1q</p>
+            <p>AI Web Studio © 2026. Разработка сайтов для бизнеса под ключ 24/7</p>
         </div>
     </div>
 </body>

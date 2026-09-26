@@ -137,7 +137,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(msg)
 
     elif data == "contact_info":
-        msg = "📞 Связь с основателем студии: @bers1q\nОфициальный сайт: AI Web Studio"
+        msg = "📞 **Связь со службой поддержки AI Web Studio**\n\nЗадайте любой вопрос прямо сюда в чат!"
         db.log_chat_message(user.id, "BOT", msg, bot_variant)
         await query.message.reply_text(msg)
     

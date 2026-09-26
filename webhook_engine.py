@@ -170,6 +170,25 @@ def safe_generate_ai(prompt, chat_id=None):
     last_err = "; ".join(errors) if errors else "Неизвестная ошибка Gemini API"
     return "", last_err
 
+DEMO_NICHES = {
+    "auto": {"title": "🚘 Автосервис & СТО", "file": "demo_auto.html", "keywords": ["авто", "сто", "шиномонтаж", "машин", "сервис"]},
+    "cleaning": {"title": "🧹 Клининг & Уборка", "file": "demo_cleaning.html", "keywords": ["клининг", "уборк", "чистк", "мытье"]},
+    "dental": {"title": "🦷 Стоматология & Медицина", "file": "demo_dental.html", "keywords": ["стоматолог", "зуб", "медицин", "клиник", "врач"]},
+    "repair": {"title": "🔨 Ремонт квартир", "file": "demo_repair.html", "keywords": ["ремонт", "отделк", "строй", "квартир"]},
+    "legal": {"title": "⚖️ Юридические услуги", "file": "demo_legal.html", "keywords": ["юрист", "адвокат", "право", "юридич"]},
+    "beauty": {"title": "💅 Салон красоты & СПА", "file": "demo_beauty.html", "keywords": ["салон", "красот", "спа", "массаж", "маникюр", "парикмахер"]}
+}
+
+def detect_niche_key(text: str) -> str:
+    if not text:
+        return None
+    text_lower = text.lower()
+    for key, info in DEMO_NICHES.items():
+        for kw in info["keywords"]:
+            if kw in text_lower:
+                return key
+    return None
+
 def process_telegram_update(update_data):
     global GEMINI_API_KEY, ADMIN_TELEGRAM_ID
     db.init_db()
@@ -202,29 +221,48 @@ def process_telegram_update(update_data):
             send_telegram_message(chat_id, msg)
 
         elif data == "contact_info":
-            msg = "📞 Связь с основателем: @bers1q\nОфициальная студия: AI Web Studio"
+            msg = "📞 **Связь со службой поддержки AI Web Studio**\n\nВы можете задать любой вопрос прямо сюда в чат, надиктовать голосом или написать нашим специалистам!"
             db.log_chat_message(chat_id, "BOT", msg, bot_variant)
             send_telegram_message(chat_id, msg)
 
-        elif data == "show_demo_niches":
+        elif data in ["show_demo_niches", "show_all_demo_niches"]:
             crm_base = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
             base = crm_base.rstrip('/')
-            msg = "🎨 **Примеры готовых сайтов по популярным нишам**\n\nВыберите вашу сферу бизнеса, чтобы открылся интерактивный демо-сайт:"
-            kbd = {"inline_keyboard": [
-                [{"text": "🚘 Автосервис & СТО", "url": f"{base}/generated_sites/demo_auto.html"}],
-                [{"text": "🧹 Клининг & Уборка", "url": f"{base}/generated_sites/demo_cleaning.html"}],
-                [{"text": "🦷 Стоматология & Медицина", "url": f"{base}/generated_sites/demo_dental.html"}],
-                [{"text": "🔨 Ремонт квартир", "url": f"{base}/generated_sites/demo_repair.html"}],
-                [{"text": "⚖️ Юридические услуги", "url": f"{base}/generated_sites/demo_legal.html"}],
-                [{"text": "💅 Салон красоты & СПА", "url": f"{base}/generated_sites/demo_beauty.html"}]
-            ]}
+            
+            brief_data = json.loads(lead.get("brief_data", "{}"))
+            client_niche = brief_data.get("niche", "") or lead.get("full_name", "")
+            niche_key = detect_niche_key(client_niche) if data == "show_demo_niches" else None
+
+            if niche_key and data != "show_all_demo_niches":
+                info = DEMO_NICHES[niche_key]
+                demo_url = f"{base}/generated_sites/{info['file']}"
+                msg = (
+                    f"🎯 **Интерактивный демо-сайт специально для вашей ниши ({info['title']})**\n\n"
+                    f"Мы подготовили рабочий пример продающего лендинга под вашу сферу бизнеса! "
+                    f"Нажмите кнопку ниже, чтобы открыть его в браузере:"
+                )
+                kbd = {"inline_keyboard": [
+                    [{"text": f"🌐 Открыть демо: {info['title']}", "url": demo_url}],
+                    [{"text": "🎨 Посмотреть демо всех 6 ниш", "callback_data": "show_all_demo_niches"}],
+                    [{"text": "📝 Заполнить бриф на сайт", "callback_data": "start_brief"}]
+                ]}
+            else:
+                msg = "🎨 **Примеры готовых сайтов по популярным нишам**\n\nВыберите вашу сферу бизнеса, чтобы открылся интерактивный демо-сайт:"
+                kbd = {"inline_keyboard": [
+                    [{"text": "🚘 Автосервис & СТО", "url": f"{base}/generated_sites/demo_auto.html"}],
+                    [{"text": "🧹 Клининг & Уборка", "url": f"{base}/generated_sites/demo_cleaning.html"}],
+                    [{"text": "🦷 Стоматология & Медицина", "url": f"{base}/generated_sites/demo_dental.html"}],
+                    [{"text": "🔨 Ремонт квартир", "url": f"{base}/generated_sites/demo_repair.html"}],
+                    [{"text": "⚖️ Юридические услуги", "url": f"{base}/generated_sites/demo_legal.html"}],
+                    [{"text": "💅 Салон красоты & СПА", "url": f"{base}/generated_sites/demo_beauty.html"}]
+                ]}
             db.log_chat_message(chat_id, "BOT", msg, bot_variant)
             send_telegram_message(chat_id, msg, reply_markup=kbd)
             return
 
         elif data == "pay_order":
             db.update_lead_status(chat_id, "PAID")
-            msg = "✅ **Оплата принята (9 900 руб.)!**\n\nВаш заказ передан основателю студии (@bers1q). После проверки брифа и утверждения верстки ваш сайт будет выслан вам на утверждение!"
+            msg = "✅ **Оплата принята (9 900 руб.)!**\n\nВаш заказ передан арт-директору студии. После проверки брифа и утверждения верстки ваш сайт будет выслан вам в этот чат!"
             db.log_chat_message(chat_id, "BOT", msg, bot_variant)
             send_telegram_message(chat_id, msg)
 
