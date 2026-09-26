@@ -303,6 +303,63 @@ def process_telegram_update(update_data):
             send_telegram_message(chat_id, msg, reply_markup=kbd)
             return
 
+        # Item 7: Dynamic Price Calculator Command
+        if text in ["/calculator", "/calc", "калькулятор"]:
+            msg = (
+                "🧮 **Калькулятор стоимости разработки сайта**\n\n"
+                "• Базовый продающий лендинг (24 часа): **9 900 руб.**\n"
+                "• Настройка SEO и индексация: **+2 900 руб.**\n"
+                "• Подключение Telegram / WhatsApp бота: **+3 900 руб.**\n"
+                "• Срочная экспресс-сдача (12 часов): **+2 500 руб.**\n"
+                "• Установка Яндекс Метрики: **Бесплатно (в подарок)**\n\n"
+                "Заполните бриф, чтобы зафиксировать точную смету!"
+            )
+            kbd = {"inline_keyboard": [[{"text": "📝 Заполнить бриф на сайт", "callback_data": "start_brief"}]]}
+            send_telegram_message(chat_id, msg, reply_markup=kbd)
+            return
+
+        # Item 41: Promo Coupon Engine Command
+        if text.startswith("/promo"):
+            parts = text.split(maxsplit=1)
+            code = parts[1].strip().upper() if len(parts) > 1 else ""
+            if code in ["START2026", "AI2026", "BERS1Q"]:
+                msg = "🎉 **Промокод активирован!**\n\nВам предоставлена скидка 10% на разработку сайта. Итоговая стоимость: **8 910 руб.** вместо 9 900 руб. Нажмите запустить бриф!"
+                kbd = {"inline_keyboard": [[{"text": "📝 Заполнить бриф со скидкой", "callback_data": "start_brief"}]]}
+            else:
+                msg = "🎟 **Введите промокод**:\nНапример: `/promo START2026` для получения скидки 10%!"
+                kbd = None
+            send_telegram_message(chat_id, msg, reply_markup=kbd)
+            return
+
+        # Item 23: Upsell Tier Engine Command
+        if text in ["/upsell", "поддержка", "хостинг"]:
+            msg = (
+                "🚀 **Дополнительные пакеты поддержки и развития сайта**:\n\n"
+                "1. **Пакет 'Технический Забото-Сервис'** (1 900 руб/мес):\n"
+                "   • Скоростной хостинг и продление SSL-сертификата\n"
+                "   • Ежемесячное обновление контента и цен\n"
+                "   • Резервное копирование 24/7\n\n"
+                "2. **Пакет 'SEO & Трафик'** (5 900 руб/мес):\n"
+                "   • Продвижение в Яндекс и Google\n"
+                "   • Настройка контекстной рекламы Яндекс Директ\n\n"
+                "Напишите основателю @bers1q для подключения любого пакета!"
+            )
+            send_telegram_message(chat_id, msg)
+            return
+
+        # Item 31: SSL & Custom Domain Assistant Command
+        if text in ["/domain", "/ssl", "домен"]:
+            msg = (
+                "🌐 **Инструкция по привязке вашего собственного доменного имени**:\n\n"
+                "1. Перейдите в панель вашего регистратора доменов (Reg.ru, Nic.ru, Beget и др.).\n"
+                "2. В настройках DNS добавьте **A-запись**:\n"
+                "   • Имя (Host): `@`\n"
+                "   • Значение (IP): `216.24.57.1`\n"
+                "3. Наш технический специалист поможет подключить бесплатный SSL-сертификат за 5 минут!"
+            )
+            send_telegram_message(chat_id, msg)
+            return
+
         # Handle /start with Deep Linking lead identification
         if text.startswith("/start"):
             user_states[chat_id] = {"step": None, "brief": {}}

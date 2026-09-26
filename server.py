@@ -96,6 +96,58 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(csv_data.encode("utf-8-sig"))
             return
 
+        # Client Portal Link Endpoint (Item 37)
+        elif path.startswith("/status/"):
+            target_id_str = path.replace("/status/", "").strip()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            
+            lead_info = None
+            if target_id_str.isdigit():
+                leads = db.get_all_leads_crm()
+                lead_info = next((l for l in leads if l['telegram_id'] == int(target_id_str)), None)
+            
+            if lead_info:
+                brief_data = json.loads(lead_info.get("brief_data", "{}"))
+                status = lead_info.get("status", "NEW")
+                status_texts = {
+                    "NEW": "🆕 Заказ создан",
+                    "BRIEFING": "📝 Заполнение брифа",
+                    "INCOMPLETE_BRIEF": "⚠️ Бриф не дозаполнен",
+                    "WAITING_PAYMENT": "💰 Ожидает подтверждения",
+                    "PAID": "✅ Оплачен / В разработке",
+                    "GENERATED": "🔨 Сайт сгенерирован (на проверке арт-директора)",
+                    "DELIVERED": "🚀 Сайт утвержден и доставлен!"
+                }
+                status_str = status_texts.get(status, status)
+                site_url = lead_info.get("site_url", "")
+                site_btn = f'<p style="margin-top:20px;"><a href="{site_url}" style="background:#3b82f6;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">🌐 Открыть готовый сайт</a></p>' if site_url else ''
+
+                html = f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"><title>Статус заказа | {brief_data.get('company_name', 'Проект')}</title>
+    <style>
+        body {{ font-family: sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }}
+        .card {{ background: #1e293b; padding: 40px; border-radius: 16px; max-width: 500px; width: 100%; border: 1px solid #334155; text-align: center; }}
+        .status {{ font-size: 20px; font-weight: bold; color: #10b981; margin: 20px 0; background: #064e3b; padding: 10px; border-radius: 8px; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>🏢 {brief_data.get('company_name', 'Ваш Проект')}</h2>
+        <p style="color: #94a3b8; margin-top: 5px;">Статус вашего заказа в AI Web Studio:</p>
+        <div class="status">{status_str}</div>
+        <p style="color: #cbd5e1; font-size: 14px;">Ниша: {brief_data.get('niche', 'Не указана')}</p>
+        {site_btn}
+    </div>
+</body></html>"""
+                self.wfile.write(html.encode("utf-8"))
+            else:
+                self.wfile.write(b"<html><body><h2>Lead not found</h2></body></html>")
+            return
+
         # Fallback to static files
         super().do_GET()
 
