@@ -17,7 +17,9 @@ from generator import generate_website_html
 load_dotenv()
 
 ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Fallback to user's provided token if env var is missing in cloud dashboard
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "8740453272:AAG5MyW2cvsiPaRT3i3V4feM7bRKoGhyFbU"
 ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 PROXY_URL = os.getenv("PROXY_URL")
@@ -48,20 +50,21 @@ async def safe_generate_ai_response(prompt: str) -> str:
     if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
         return ""
         
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    
-    # Try models in order of availability
-    for model_name in ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt
-            )
-            if response and response.text:
-                return response.text.strip()
-        except Exception as e:
-            logging.warning(f"Model {model_name} failed: {e}")
-            continue
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        for model_name in ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+                if response and response.text:
+                    return response.text.strip()
+            except Exception as e:
+                logging.warning(f"Model {model_name} failed: {e}")
+                continue
+    except Exception as global_err:
+        logging.error(f"GenAI Client error: {global_err}")
             
     return ""
 
@@ -313,7 +316,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
-    print("Telegram Sales Bot starting resilient polling loop...")
+    print(f"Telegram Sales Bot starting with token {TELEGRAM_BOT_TOKEN[:10]}...")
     while True:
         try:
             app.run_polling(drop_pending_updates=True)
