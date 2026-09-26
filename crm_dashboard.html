@@ -71,6 +71,10 @@
             <div id="col-INCOMPLETE_BRIEF"></div>
         </div>
         <div class="column">
+            <div class="column-header" style="color: var(--danger);">❌ Отказ / Возражения <span class="badge" id="count-REJECTED">0</span></div>
+            <div id="col-REJECTED"></div>
+        </div>
+        <div class="column">
             <div class="column-header" style="color: var(--primary);">💰 Оплачены / Бриф <span class="badge" id="count-WAITING_PAYMENT">0</span></div>
             <div id="col-WAITING_PAYMENT"></div>
         </div>
@@ -127,7 +131,7 @@
         }
 
         function renderKanban(leads) {
-            const cols = ['NEW', 'INCOMPLETE_BRIEF', 'WAITING_PAYMENT', 'GENERATED', 'DELIVERED'];
+            const cols = ['NEW', 'INCOMPLETE_BRIEF', 'REJECTED', 'WAITING_PAYMENT', 'GENERATED', 'DELIVERED'];
             cols.forEach(c => {
                 document.getElementById(`col-${c}`).innerHTML = '';
                 document.getElementById(`count-${c}`).innerText = '0';
@@ -138,6 +142,8 @@
                 let status = l.status || 'NEW';
                 if (['BRIEFING', 'INCOMPLETE_BRIEF', 'BRIEF_RECOVERY_SENT', 'INCOMPLETE_RECOVERED_NOTIFIED'].includes(status)) {
                     status = 'INCOMPLETE_BRIEF';
+                } else if (['REJECTED', 'OBJECTION', 'LOST', 'FAILED', 'CANCELLED'].includes(status)) {
+                    status = 'REJECTED';
                 } else if (['WAITING_PAYMENT'].includes(status)) {
                     status = 'WAITING_PAYMENT';
                 } else if (['PAID', 'GENERATED'].includes(status)) {
@@ -161,6 +167,7 @@
                         </div>
                         ${l.brief_step > 0 && l.brief_step < 7 ? `<div class="incomplete-warning">⚠️ Бросил бриф на шаге ${l.brief_step}/7</div>` : ''}
                         ${l.brief_data && l.brief_data !== '{}' ? `<div style="font-size: 11px; color: var(--success); margin-top: 4px;">✓ Бриф заполнен</div>` : ''}
+                        ${l.feedback ? `<div style="font-size: 11px; color: var(--danger); margin-top: 4px; font-weight: 500;">💬 ${l.feedback}</div>` : ''}
                     </div>
                 `;
 

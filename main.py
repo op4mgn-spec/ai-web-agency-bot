@@ -81,6 +81,16 @@ def run_database_backup_loop():
 
 if __name__ == "__main__":
     print("🚀 Initializing AI Web Studio Webhook Cloud Engine...")
+
+    # Auto-seed demo CRM data if leads count is low
+    try:
+        import seed_crm_demo_data
+        leads_count = len(db.get_all_leads_crm())
+        if leads_count < 5:
+            print("🌱 Initializing CRM with demo leads across all stages...")
+            seed_crm_demo_data.seed_demo_data()
+    except Exception as e:
+        print(f"Error seeding demo data on startup: {e}")
     
     # Start web server in background thread
     server_thread = threading.Thread(target=run_web_server, daemon=True)
