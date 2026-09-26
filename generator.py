@@ -1,11 +1,8 @@
 import os
 import json
 import re
+import requests
 from pathlib import Path
-from google import genai
-from dotenv import load_dotenv
-
-load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -13,52 +10,55 @@ SITES_OUTPUT_DIR = Path(__file__).parent / "generated_sites"
 SITES_OUTPUT_DIR.mkdir(exist_ok=True)
 
 def generate_website_html(brief_data: dict, site_id: str) -> str:
-    """
-    Generates a full responsive HTML landing page based on brief data.
-    Uses Gemini API if API key is configured, otherwise fallback template.
-    """
     company_name = brief_data.get("company_name", "Наша Компания")
     niche = brief_data.get("niche", "Услуги и сервис")
     phone = brief_data.get("phone", "+7 (999) 000-00-00")
     services = brief_data.get("services", "Качественные услуги для вашего бизнеса")
-    about = brief_data.get("about", "Мы предостовляем профессиональные услуги со 100% гарантией качества.")
-    color_theme = brief_data.get("color_theme", "#2563eb") # Default blue
+    about = brief_data.get("utp", "Мы предоставляем профессиональные услуги со 100% гарантией качества.")
+    color_theme = brief_data.get("color_theme", "#2563eb")
 
     ai_content = None
-    if GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here":
-        try:
-            client = genai.Client(api_key=GEMINI_API_KEY)
-            prompt = f"""
-            Ты — лучший веб-копирайтер. Напиши текст для современного лендинга компании.
-            Название: {company_name}
-            Сфера/Ниша: {niche}
-            Услуги: {services}
-            О компании: {about}
+    key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
 
-            Верни ответ strictly в формате JSON со следующими полями:
-            {{
-                "hero_title": "Заголовок первого экрана (цепляющий, оффер)",
-                "hero_subtitle": "Подзаголовок с выгодой для клиента",
-                "features": ["Преимущество 1", "Преимущество 2", "Преимущество 3", "Преимущество 4"],
-                "services_list": [
-                    {{"title": "Услуга 1", "description": "Описание услуги 1", "price": "от 1 000 руб."}},
-                    {{"title": "Услуга 2", "description": "Описание услуги 2", "price": "от 3 000 руб."}},
-                    {{"title": "Услуга 3", "description": "Описание услуги 3", "price": "от 5 000 руб."}}
-                ],
-                "cta_text": "Призыв к действию внизу страницы"
-            }}
-            """
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt
-            )
-            # Clean markdown codeblocks if present
-            raw_text = response.text
-            match = re.search(r'\{.*\}', raw_text, re.DOTALL)
-            if match:
-                ai_content = json.loads(match.group(0))
-        except Exception as e:
-            print(f"Gemini generation fallback used due to: {e}")
+    if key and key != "your_gemini_api_key_here":
+        prompt = f"""
+        Ты — лучший веб-копирайтер. Напиши текст для современного лендинга компании.
+        Название: {company_name}
+        Сфера/Ниша: {niche}
+        Услуги: {services}
+        О компании/УТП: {about}
+
+        Верни ответ strictly в формате JSON со следующими полями:
+        {{
+            "hero_title": "Заголовок первого экрана (цепляющий, оффер)",
+            "hero_subtitle": "Подзаголовок с выгодой для клиента",
+            "features": ["Преимущество 1", "Преимущество 2", "Преимущество 3", "Преимущество 4"],
+            "services_list": [
+                {{"title": "Услуга 1", "description": "Описание услуги 1", "price": "от 1 000 руб."}},
+                {{"title": "Услуга 2", "description": "Описание услуги 2", "price": "от 3 000 руб."}},
+                {{"title": "Услуга 3", "description": "Описание услуги 3", "price": "от 5 000 руб."}}
+            ],
+            "cta_text": "Призыв к действию внизу страницы"
+        }}
+        """
+
+        for model_name in ['gemini-3.8-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash-latest']:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
+            headers = {"Content-Type": "application/json"}
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            try:
+                r = requests.post(url, json=payload, headers=headers, timeout=12)
+                data = r.json()
+                if "candidates" in data and len(data["candidates"]) > 0:
+                    parts = data["candidates"][0].get("content", {}).get("parts", [])
+                    if parts and "text" in parts[0]:
+                        raw_text = parts[0]["text"]
+                        match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                        if match:
+                            ai_content = json.loads(match.group(0))
+                            break
+            except Exception as e:
+                print(f"Generator Gemini REST Error ({model_name}): {e}")
 
     if not ai_content:
         ai_content = {
@@ -166,14 +166,3 @@ def generate_website_html(brief_data: dict, site_id: str) -> str:
         f.write(html)
 
     return str(output_path)
-
-if __name__ == "__main__":
-    test_brief = {
-        "company_name": "АвтоСервис Вектор",
-        "niche": "Ремонт и ТО автомобилей",
-        "phone": "+7 (495) 123-45-67",
-        "services": "Компьютерная диагностика, замена масла, ремонт ДВС и ходовой",
-        "about": "Надежный автосервис с гарантией на все работы 12 месяцев."
-    }
-    path = generate_website_html(test_brief, "test_vektor")
-    print(f"Test site generated at: {path}")

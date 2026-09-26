@@ -47,7 +47,8 @@ def safe_generate_ai(prompt, chat_id=None):
         return "", "Ключ Gemini API не задан"
 
     errors = []
-    models_to_try = ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-2.5-flash']
+    # Using official updated model names
+    models_to_try = ['gemini-3.8-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash-latest', 'gemini-1.5-pro-latest']
     
     for model_name in models_to_try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
@@ -306,7 +307,6 @@ def process_telegram_update(update_data):
             db.log_chat_message(chat_id, "BOT", ai_ans, bot_variant)
             send_telegram_message(chat_id, ai_ans)
         else:
-            # Send exact diagnostic error to Admin @bers1q if Gemini API failed
             if is_admin and err_details:
                 debug_msg = f"⚠️ **Отладка Gemini API**: Ошибка при вызове ИИ:\n`{err_details}`"
                 send_telegram_message(chat_id, debug_msg)
