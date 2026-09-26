@@ -84,12 +84,26 @@ def generate_website_html(brief_data: dict, site_id: str) -> str:
         </div>''' for s in ai_content['services_list']
     ])
 
+    # SEO Meta Description & OpenGraph Tags
+    meta_description = f"Официальный сайт компании '{company_name}'. {ai_content['hero_subtitle']}"
+    og_title = f"{company_name} — {ai_content['hero_title']}"
+
+    # Yandex Metrika Counter Slot (Item 34)
+    metrika_code = brief_data.get("yandex_metrika", "")
+    metrika_html = f"<!-- Yandex.Metrika counter -->\n{metrika_code}\n<!-- /Yandex.Metrika counter -->" if metrika_code else ""
+
     html = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{company_name} | {niche}</title>
+    <meta name="description" content="{meta_description}">
+    <!-- OpenGraph Tags (Item 33) -->
+    <meta property="og:title" content="{og_title}">
+    <meta property="og:description" content="{meta_description}">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="ru_RU">
     <style>
         :root {{
             --primary: {color_theme};
@@ -118,8 +132,11 @@ def generate_website_html(brief_data: dict, site_id: str) -> str:
         .cta-box {{ background: var(--primary); color: white; padding: 50px 30px; border-radius: 16px; text-align: center; margin-top: 40px; }}
         .cta-box h2 {{ font-size: 32px; margin-bottom: 15px; }}
         .cta-box p {{ font-size: 18px; margin-bottom: 25px; opacity: 0.9; }}
+        .legal-notice {{ font-size: 12px; opacity: 0.85; margin-top: 15px; display: block; }}
         footer {{ text-align: center; padding: 30px; color: #94a3b8; font-size: 14px; border-top: 1px solid #e2e8f0; margin-top: 60px; }}
+        footer a {{ color: #64748b; text-decoration: underline; }}
     </style>
+    {metrika_html}
 </head>
 <body>
     <header>
@@ -152,11 +169,13 @@ def generate_website_html(brief_data: dict, site_id: str) -> str:
             <h2>Свяжитесь с нами</h2>
             <p>{ai_content['cta_text']}</p>
             <a href="tel:{phone}" class="btn" style="background: white; color: var(--primary);">Позвонить: {phone}</a>
+            <span class="legal-notice">🔒 Отправляя данные, вы соглашаетесь на обработку персональных данных согласно 152-ФЗ РФ.</span>
         </div>
     </section>
 
     <footer>
-        <p>© {company_name}. Все права защищены. Создано с помощью AI Web Studio.</p>
+        <p>© {company_name}. Все права защищены.</p>
+        <p style="margin-top: 8px;"><a href="#" onclick="alert('Политика конфиденциальности: Данный сайт защищает ваши персональные данные в соответствии с Федеральным законом № 152-ФЗ РФ.'); return false;">Политика конфиденциальности (152-ФЗ)</a></p>
     </footer>
 </body>
 </html>

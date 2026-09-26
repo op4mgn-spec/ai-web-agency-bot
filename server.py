@@ -80,6 +80,22 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(messages, ensure_ascii=False).encode("utf-8"))
             return
 
+        # API: Export CRM Leads as CSV (Item 45)
+        elif path == "/api/export_crm":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8-sig")
+            self.send_header("Content-Disposition", "attachment; filename=leads_export.csv")
+            self.end_headers()
+            
+            leads = db.get_all_leads_crm()
+            lines = ["Telegram ID;Username;Full Name;Status;Bot Variant;Created At;Updated At"]
+            for l in leads:
+                lines.append(f"{l.get('telegram_id')};{l.get('username')};{l.get('full_name')};{l.get('status')};{l.get('bot_variant')};{l.get('created_at')};{l.get('updated_at')}")
+            
+            csv_data = "\n".join(lines)
+            self.wfile.write(csv_data.encode("utf-8-sig"))
+            return
+
         # Fallback to static files
         super().do_GET()
 

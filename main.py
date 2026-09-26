@@ -64,6 +64,21 @@ def setup_webhook_and_keepalive():
             print(f"Keepalive ping error: {e}")
         time.sleep(240)
 
+import shutil
+
+def run_database_backup_loop():
+    print("💾 Starting Automated Database Backup Loop...")
+    db_file = os.path.join(os.path.dirname(__file__), "agency.db")
+    backup_file = os.path.join(os.path.dirname(__file__), "agency_backup.db")
+    while True:
+        try:
+            if os.path.exists(db_file):
+                shutil.copy2(db_file, backup_file)
+                print("  💾 Database snapshot backup saved to agency_backup.db")
+        except Exception as e:
+            print(f"Error in database backup loop: {e}")
+        time.sleep(3600) # Backup every 1 hour
+
 if __name__ == "__main__":
     print("🚀 Initializing AI Web Studio Webhook Cloud Engine...")
     
@@ -74,6 +89,10 @@ if __name__ == "__main__":
     # Start Incomplete Brief Recovery loop in background thread
     recovery_thread = threading.Thread(target=run_brief_recovery_loop, daemon=True)
     recovery_thread.start()
+
+    # Start Database Backup loop in background thread (Item 48)
+    backup_thread = threading.Thread(target=run_database_backup_loop, daemon=True)
+    backup_thread.start()
 
     # Start Webhook setup and keepalive on main thread
     setup_webhook_and_keepalive()

@@ -51,7 +51,10 @@
 <body>
     <header>
         <div class="logo">⚡️ AI Web Agency CRM & A/B Center</div>
-        <div><button onclick="loadCRM()" style="background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">🔄 Обновить данные</button></div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="loadCRM()" style="background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">🔄 Обновить данные</button>
+            <a href="/api/export_crm" style="background: var(--success); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center;">📥 Экспорт в CSV</a>
+        </div>
     </header>
 
     <div class="stats-bar" id="statsBar">
