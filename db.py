@@ -20,10 +20,10 @@ def init_db():
             telegram_id INTEGER PRIMARY KEY,
             username TEXT,
             full_name TEXT,
-            status TEXT DEFAULT 'NEW',  -- NEW, BRIEFING, INCOMPLETE_BRIEF, WAITING_PAYMENT, PAID, GENERATED, DELIVERED
+            status TEXT DEFAULT 'NEW',
             brief_step INTEGER DEFAULT 0,
             brief_data TEXT DEFAULT '{}',
-            bot_variant TEXT DEFAULT 'Variant A (Agile AI)',
+            bot_variant TEXT DEFAULT 'Variant A (Консультант)',
             site_url TEXT DEFAULT '',
             site_path TEXT DEFAULT '',
             feedback TEXT DEFAULT '',
@@ -31,13 +31,26 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Migration for existing databases missing new columns
+    for col, col_type in [
+        ('brief_step', "INTEGER DEFAULT 0"),
+        ('bot_variant', "TEXT DEFAULT 'Variant A (Консультант)'"),
+        ('site_url', "TEXT DEFAULT ''"),
+        ('site_path', "TEXT DEFAULT ''"),
+        ('feedback', "TEXT DEFAULT ''")
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE leads ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass # Column already exists
     
     # Full Chat Dialog History table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             telegram_id INTEGER,
-            sender TEXT,  -- USER or BOT
+            sender TEXT,
             text TEXT,
             bot_variant TEXT,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -61,34 +74,22 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             target_url TEXT,
             company_name TEXT,
-            status TEXT,  -- SUCCESS, FAILED
+            status TEXT,
             error_message TEXT,
             submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     
-    # Insert default A/B testing personas if empty
-    cursor.execute("SELECT COUNT(*) FROM bot_variants")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO bot_variants (name, system_prompt) VALUES (?, ?)", (
-            "Variant A (Консультант)",
-            "Ты — мягкий эксперт-консультант веб-студии. Твоя цель — подробно и вежливо отвечать на вопросы, давать советы по продвижению бизнеса и плавно вести к заполнению брифа."
-        ))
-        cursor.execute("INSERT INTO bot_variants (name, system_prompt) VALUES (?, ?)", (
-            "Variant B (Прямые Продажи)",
-            "Ты — энергичный и уверенный директор по продажам. Твоя цель — четко отвечать на вопросы, приводить конкретные цифры и факты, закрывать все возражения и предлагать скидку 10% при оформлении прямо сейчас."
-        ))
-
     conn.commit()
     conn.close()
 
 def get_or_create_lead(telegram_id: int, username: str = "", full_name: str = ""):
+    init_db() # Ensure schema migration
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM leads WHERE telegram_id = ?", (telegram_id,))
     row = cursor.fetchone()
     if not row:
-        # Assign A/B variant round-robin
         cursor.execute("SELECT count(*) FROM leads")
         count = cursor.fetchone()[0]
         variant = "Variant A (Консультант)" if count % 2 == 0 else "Variant B (Прямые Продажи)"
@@ -146,6 +147,7 @@ def log_chat_message(telegram_id: int, sender: str, text: str, bot_variant: str 
     conn.close()
 
 def get_all_leads_crm():
+    init_db()
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM leads ORDER BY updated_at DESC")
@@ -154,6 +156,7 @@ def get_all_leads_crm():
     return rows
 
 def get_lead_messages(telegram_id: int):
+    init_db()
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM messages WHERE telegram_id = ? ORDER BY timestamp ASC", (telegram_id,))
@@ -162,6 +165,7 @@ def get_lead_messages(telegram_id: int):
     return rows
 
 def get_ab_stats():
+    init_db()
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -189,4 +193,4 @@ def save_generated_site(telegram_id: int, site_url: str, site_path: str):
 
 if __name__ == "__main__":
     init_db()
-    print("Database updated with CRM & Chat logging tables.")
+    print("Database updated and auto-migrated.")
