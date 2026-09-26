@@ -79,6 +79,22 @@ def init_db():
             submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Leads Queue Table (Outreach Queue & Timezone scheduling)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS leads_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_name TEXT,
+            target_url TEXT UNIQUE,
+            phone TEXT,
+            city TEXT,
+            timezone_offset INTEGER DEFAULT 3,
+            status TEXT DEFAULT 'PENDING',
+            scheduled_at TIMESTAMP,
+            error_message TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     
     conn.commit()
     conn.close()
@@ -92,7 +108,14 @@ def get_or_create_lead(telegram_id: int, username: str = "", full_name: str = ""
     if not row:
         cursor.execute("SELECT count(*) FROM leads")
         count = cursor.fetchone()[0]
-        variant = "Variant A (Консультант)" if count % 2 == 0 else "Variant B (Прямые Продажи)"
+        
+        variants = [
+            "Variant A (Консультант)",
+            "Variant B (Прямые Продажи)",
+            "Variant C (Демо-Специалист)",
+            "Variant D (Архитектор Решений)"
+        ]
+        variant = variants[count % len(variants)]
         
         cursor.execute(
             "INSERT INTO leads (telegram_id, username, full_name, status, bot_variant) VALUES (?, ?, ?, 'NEW', ?)",
@@ -190,6 +213,77 @@ def save_generated_site(telegram_id: int, site_url: str, site_path: str):
     )
     conn.commit()
     conn.close()
+
+def is_lead_duplicate(target_url: str, phone: str = ""):
+    conn = get_connection()
+    cursor = conn.cursor()
+    clean_url = target_url.lower().replace("https://", "").replace("http://", "").replace("www.", "").strip("/")
+    
+    cursor.execute("SELECT id FROM leads_queue WHERE LOWER(target_url) LIKE ?", (f"%{clean_url}%",))
+    if cursor.fetchone():
+        conn.close()
+        return True
+        
+    if phone:
+        clean_phone = "".join(filter(str.isdigit, phone))
+        if len(clean_phone) >= 7:
+            cursor.execute("SELECT id FROM leads_queue WHERE phone LIKE ?", (f"%{clean_phone[-7:]}%",))
+            if cursor.fetchone():
+                conn.close()
+                return True
+                
+    conn.close()
+    return False
+
+def add_to_lead_queue(company_name: str, target_url: str, phone: str = "", city: str = "", timezone_offset: int = 3):
+    init_db()
+    if is_lead_duplicate(target_url, phone):
+        return False
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO leads_queue (company_name, target_url, phone, city, timezone_offset) VALUES (?, ?, ?, ?, ?)",
+            (company_name, target_url, phone, city, timezone_offset)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Error adding lead to queue: {e}")
+        conn.close()
+        return False
+
+def get_pending_queue_leads(limit: int = 10):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM leads_queue WHERE status = 'PENDING' ORDER BY created_at ASC LIMIT ?", (limit,))
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
+
+def update_queue_status(queue_id: int, status: str, error_message: str = ""):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE leads_queue SET status = ?, error_message = ? WHERE id = ?",
+        (status, error_message, queue_id)
+    )
+    conn.commit()
+    conn.close()
+
+def get_incomplete_brief_leads():
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM leads 
+        WHERE (status = 'INCOMPLETE_BRIEF' OR (brief_step > 0 AND brief_step < 7))
+    """)
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
 
 if __name__ == "__main__":
     init_db()

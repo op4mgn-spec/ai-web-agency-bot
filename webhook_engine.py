@@ -14,11 +14,30 @@ API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 # User state memory for brief steps
 user_states = {}
 
-SYSTEM_SALES_PROMPT = """
-Ты — вежливый старший менеджер по продажам веб-студии AI Web Studio. 
-Твоя цель — отвечать на вопросы клиента про сайты, цены (9 900 руб), сроки (24 часа) и гарантии. 
-Будь кратък, убедителен и вежлив.
+PERSONA_PROMPTS = {
+    "Variant A (Консультант)": """
+Ты — старший ИИ-консультант веб-студии AI Web Studio. 
+Твой стиль: заботливый, экспертный, вежливый. 
+Твоя цель: ответить на вопросы клиента про разработку сайтов, объяснить ценность гибридной разработки (скорость ИИ + ручной контроль арт-директором studio), цены (9 900 руб) и сроки (24 часа).
+Мягко подводи клиента к заполнению 7 шагов брифа.
+""",
+    "Variant B (Прямые Продажи)": """
+Ты — энергичный ведущий менеджер по продажам AI Web Studio. 
+Твой стиль: активный, уверенный, ориентированный на выгоду и срочность.
+Твоя цель: подчеркнуть супер-цену (9 900 руб вместо 45 000 руб), рекордный срок (24 часа) и дать мощный призыв запустить бриф прямо сейчас.
+""",
+    "Variant C (Демо-Специалист)": """
+Ты — визуальный специалист и демо-презентатор AI Web Studio. 
+Твой стиль: креативный, лаконичный, сфокусированный на дизайне, адаптивности и visual UX.
+Твоя цель: показать, как здорово будет выглядеть готовый сайт клиента, и предложить прямо сейчас собрать первый макет по брифу.
+""",
+    "Variant D (Архитектор Решений)": """
+Ты — технический архитектор и маркетолог AI Web Studio. 
+Твой стиль: аналитический, системный, сфокусированный на конверсии, SEO и воронках продаж.
+Твоя цель: объяснить клиенту, как сайт будет приводить заявки, какие блоки нужны в его нише, и предложить заполнить бриф.
 """
+}
+SYSTEM_SALES_PROMPT = PERSONA_PROMPTS["Variant A (Консультант)"]
 
 def send_telegram_message(chat_id, text, reply_markup=None, parse_mode="Markdown"):
     payload = {"chat_id": chat_id, "text": text}
@@ -299,8 +318,9 @@ def process_telegram_update(update_data):
             send_telegram_message(chat_id, summary, reply_markup=kbd)
             return
 
-        # General Conversational Q&A via Gemini REST API
-        prompt = f"{SYSTEM_SALES_PROMPT}\nВопрос клиента: '{text}'"
+        # General Conversational Q&A via Gemini REST API using specific A/B Persona
+        persona_prompt = PERSONA_PROMPTS.get(bot_variant, PERSONA_PROMPTS["Variant A (Консультант)"])
+        prompt = f"{persona_prompt}\n\nВопрос клиента: '{text}'"
         ai_ans, err_details = safe_generate_ai(prompt, chat_id)
 
         if ai_ans:
