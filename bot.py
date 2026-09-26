@@ -12,17 +12,18 @@ from telegram.request import HTTPXRequest
 from google import genai
 from dotenv import load_dotenv, set_key
 import db
+import server
 from generator import generate_website_html
 
 load_dotenv()
 
 ENV_FILE = os.path.join(os.path.dirname(__file__), ".env")
 
-# Fallback to user's provided token if env var is missing in cloud dashboard
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "8740453272:AAG5MyW2cvsiPaRT3i3V4feM7bRKoGhyFbU"
 ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 PROXY_URL = os.getenv("PROXY_URL")
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL") # Provided automatically by Render
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -316,7 +317,24 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
-    print(f"Telegram Sales Bot starting with token {TELEGRAM_BOT_TOKEN[:10]}...")
+    # Share app instance with server for Webhook handling
+    server.telegram_app = app
+    
+    webhook_url = f"{RENDER_EXTERNAL_URL}/webhook" if RENDER_EXTERNAL_URL else None
+
+    if webhook_url:
+        print(f"Setting Telegram Webhook to {webhook_url}...")
+        try:
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(app.bot.set_webhook(url=webhook_url, drop_pending_updates=True))
+            print(f"✅ Webhook successfully active at {webhook_url}")
+            # Keep main thread alive while web server processes webhooks
+            while True:
+                time.sleep(3600)
+        except Exception as e:
+            print(f"Webhook set error: {e}, falling back to polling...")
+
+    print(f"Telegram Sales Bot starting polling loop...")
     while True:
         try:
             app.run_polling(drop_pending_updates=True)
