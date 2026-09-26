@@ -217,23 +217,52 @@ def process_telegram_update(update_data):
                 send_telegram_message(chat_id, "🔑 **Инструкция**: Отправьте команду в формате:\n`/setkey AIzaSyВашСкопированныйКлюч`")
             return
 
+        # CRM Command to open Web CRM system directly in Telegram or Browser!
+        if text in ["/crm", "/admin", "/dashboard", "/crm_dashboard"]:
+            crm_base = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
+            crm_url = f"{crm_base.rstrip('/')}/crm"
+            
+            if not is_admin:
+                msg = "⛔️ **Доступ ограничен**. Панель CRM доступна только администраторам."
+                send_telegram_message(chat_id, msg)
+                return
+
+            msg = (
+                f"⚡️ **Панель управления AI Web Agency CRM**\n\n"
+                f"📊 Отслеживание лидов, этапов брифов, A/B статистики и истории диалогов.\n\n"
+                f"Выберите способ открытия:"
+            )
+            kbd = {"inline_keyboard": [
+                [{"text": "📱 Открыть CRM в Telegram (WebApp)", "web_app": {"url": crm_url}}],
+                [{"text": "🌐 Открыть CRM в браузере", "url": crm_url}]
+            ]}
+            send_telegram_message(chat_id, msg, reply_markup=kbd)
+            return
+
         # Handle /start
         if text == "/start":
             user_states[chat_id] = {"step": None, "brief": {}}
+            crm_base = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
+            crm_url = f"{crm_base.rstrip('/')}/crm"
+
             welcome = (
                 f"👋 Здравствуйте, {user.get('first_name')}!\n\n"
                 f"Я — ИИ-консультант **AI Web Studio**.\n"
                 f"Мы создаем продающие сайты под ключ за 24 часа.\n\n"
                 f"💬 Задайте мне любой вопрос в чат или нажмите кнопку ниже для заказа!"
             )
-            if is_admin:
-                welcome += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.** Установить новый ключ: `/setkey AIzaSy...`."
-
-            kbd = {"inline_keyboard": [
+            
+            buttons = [
                 [{"text": "📝 Заполнить подробный бриф", "callback_data": "start_brief"}],
                 [{"text": "❓ Задать вопрос менеджеру", "callback_data": "ask_question"}],
                 [{"text": "📞 Контакты основателя", "callback_data": "contact_info"}]
-            ]}
+            ]
+
+            if is_admin:
+                welcome += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.**\n• `/crm` — открыть CRM-систему\n• `/setkey AIzaSy...` — установить Gemini API ключ"
+                buttons.insert(0, [{"text": "📊 Панель управления CRM", "web_app": {"url": crm_url}}])
+
+            kbd = {"inline_keyboard": buttons}
             db.log_chat_message(chat_id, "BOT", welcome, bot_variant)
             send_telegram_message(chat_id, welcome, reply_markup=kbd)
             return
