@@ -65,7 +65,7 @@ def safe_generate_ai(prompt):
     return ""
 
 def process_telegram_update(update_data):
-    global GEMINI_API_KEY
+    global GEMINI_API_KEY, ADMIN_TELEGRAM_ID
     db.init_db()
 
     # Handle Callback Queries (Button Clicks)
@@ -168,14 +168,26 @@ def process_telegram_update(update_data):
 
         db.log_chat_message(chat_id, "USER", text, bot_variant)
 
-        is_admin = (user.get("username", "").lower() == "bers1q")
+        user_username = (user.get("username") or "").lower().replace("@", "")
+        user_id_str = str(chat_id)
+        if user_username == "bers1q":
+            ADMIN_TELEGRAM_ID = user_id_str
+
+        is_admin = (user_username == "bers1q") or (user_id_str == str(ADMIN_TELEGRAM_ID))
 
         # Admin Command to set Gemini API key directly from Telegram!
-        if text.startswith("/setkey ") and is_admin:
-            new_key = text.split(" ", 1)[1].strip()
-            GEMINI_API_KEY = new_key
-            os.environ["GEMINI_API_KEY"] = new_key
-            send_telegram_message(chat_id, "🔑 **Gemini API Key успешно обновлен и активирован!**")
+        if text.startswith("/setkey"):
+            if not is_admin:
+                # If not admin, ignore command
+                return
+            parts = text.split(maxsplit=1)
+            if len(parts) > 1:
+                new_key = parts[1].strip()
+                GEMINI_API_KEY = new_key
+                os.environ["GEMINI_API_KEY"] = new_key
+                send_telegram_message(chat_id, f"🔑 **Gemini API Key успешно сохранен и активирован!**\n\nКлюч: `{new_key[:8]}...{new_key[-4:]}`")
+            else:
+                send_telegram_message(chat_id, "🔑 **Инструкция**: Отправьте команду в формате:\n`/setkey AIzaSyВашСкопированныйКлюч`")
             return
 
         # Handle /start
@@ -188,7 +200,7 @@ def process_telegram_update(update_data):
                 f"💬 Задайте мне любой вопрос в чат или нажмите кнопку ниже для заказа!"
             )
             if is_admin:
-                welcome += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.** Вы можете установить ключ API командой `/setkey AIzaSy...`."
+                welcome += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.** Вы можете изменить ключ API командой `/setkey AIzaSy...`."
 
             kbd = {"inline_keyboard": [
                 [{"text": "📝 Заполнить подробный бриф", "callback_data": "start_brief"}],
