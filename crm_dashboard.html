@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Web Agency | CRM & A/B Dashboard</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --border: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', system-ui, sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-main); min-height: 100vh; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 25px; }
+        .logo { font-size: 22px; font-weight: bold; color: var(--primary); display: flex; align-items: center; gap: 10px; }
+        .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .stat-card { background: var(--card-bg); padding: 20px; border-radius: 10px; border: 1px solid var(--border); }
+        .stat-card h4 { font-size: 13px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; }
+        .stat-card .value { font-size: 26px; font-weight: bold; }
+        
+        .kanban { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; overflow-x: auto; }
+        .column { background: #182234; padding: 15px; border-radius: 12px; border: 1px solid var(--border); min-height: 500px; }
+        .column-header { font-size: 15px; font-weight: bold; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+        .badge { background: var(--border); padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+        
+        .lead-card { background: var(--card-bg); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 12px; cursor: pointer; transition: 0.2s; }
+        .lead-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+        .lead-name { font-weight: bold; font-size: 15px; margin-bottom: 5px; display: flex; justify-content: space-between; }
+        .lead-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+        .variant-tag { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+        .incomplete-warning { color: var(--warning); font-size: 12px; margin-top: 5px; font-weight: 500; }
+
+        /* Modal for Chat History */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: var(--card-bg); width: 90%; max-width: 650px; height: 80vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid var(--border); }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        .chat-msg { max-width: 80%; padding: 10px 14px; border-radius: 10px; font-size: 14px; line-height: 1.4; }
+        .chat-msg.user { align-self: flex-start; background: #334155; color: white; }
+        .chat-msg.bot { align-self: flex-end; background: var(--primary); color: white; }
+        .close-btn { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">⚡️ AI Web Agency CRM & A/B Center</div>
+        <div><button onclick="loadCRM()" style="background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">🔄 Обновить данные</button></div>
+    </header>
+
+    <div class="stats-bar" id="statsBar">
+        <!-- Loaded via JS -->
+    </div>
+
+    <div class="kanban">
+        <div class="column">
+            <div class="column-header">🆕 Новые <span class="badge" id="count-NEW">0</span></div>
+            <div id="col-NEW"></div>
+        </div>
+        <div class="column">
+            <div class="column-header" style="color: var(--warning);">⚠️ Незавершенный бриф <span class="badge" id="count-INCOMPLETE_BRIEF">0</span></div>
+            <div id="col-INCOMPLETE_BRIEF"></div>
+        </div>
+        <div class="column">
+            <div class="column-header" style="color: var(--primary);">💰 Оплачены / Бриф <span class="badge" id="count-WAITING_PAYMENT">0</span></div>
+            <div id="col-WAITING_PAYMENT"></div>
+        </div>
+        <div class="column">
+            <div class="column-header" style="color: var(--success);">🔨 Сгенерированы <span class="badge" id="count-GENERATED">0</span></div>
+            <div id="col-GENERATED"></div>
+        </div>
+        <div class="column">
+            <div class="column-header">✅ Доставлены <span class="badge" id="count-DELIVERED">0</span></div>
+            <div id="col-DELIVERED"></div>
+        </div>
+    </div>
+
+    <!-- Modal Chat Viewer -->
+    <div class="modal" id="chatModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">История диалога с клиентом</h3>
+                <button class="close-btn" onclick="closeModal()">✕</button>
+            </div>
+            <div class="chat-box" id="chatBox"></div>
+        </div>
+    </div>
+
+    <script>
+        async function loadCRM() {
+            try {
+                const res = await fetch('/api/crm_data');
+                const data = await res.json();
+                renderStats(data.ab_stats);
+                renderKanban(data.leads);
+            } catch (err) {
+                console.error("Error loading CRM data:", err);
+            }
+        }
+
+        function renderStats(abStats) {
+            const statsBar = document.getElementById('statsBar');
+            statsBar.innerHTML = abStats.map(s => `
+                <div class="stat-card">
+                    <h4>${s.bot_variant || 'Основной'}</h4>
+                    <div class="value">${s.total_leads} <span style="font-size: 14px; color: var(--text-muted);">лидов</span></div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">
+                        Брифы: ${s.briefs_count} | Продажи: <strong style="color: var(--success);">${s.sales_count}</strong>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderKanban(leads) {
+            const cols = ['NEW', 'INCOMPLETE_BRIEF', 'WAITING_PAYMENT', 'GENERATED', 'DELIVERED'];
+            cols.forEach(c => {
+                document.getElementById(`col-${c}`).innerHTML = '';
+                document.getElementById(`count-${c}`).innerText = '0';
+            });
+
+            const counts = {};
+            leads.forEach(l => {
+                let status = l.status || 'NEW';
+                if (status === 'BRIEFING') status = 'INCOMPLETE_BRIEF';
+                counts[status] = (counts[status] || 0) + 1;
+
+                const cardHtml = `
+                    <div class="lead-card" onclick="openChat(${l.telegram_id}, '${l.full_name}')">
+                        <div class="lead-name">
+                            <span>${l.full_name || 'Клиент'}</span>
+                            <span style="font-size: 11px; color: var(--text-muted);">@${l.username || 'id'+l.telegram_id}</span>
+                        </div>
+                        <div class="lead-meta">
+                            <span class="variant-tag">${l.bot_variant}</span>
+                        </div>
+                        ${l.brief_step > 0 && l.brief_step < 7 ? `<div class="incomplete-warning">⚠️ Бросил бриф на шаге ${l.brief_step}/7</div>` : ''}
+                        ${l.brief_data && l.brief_data !== '{}' ? `<div style="font-size: 11px; color: var(--success); margin-top: 4px;">✓ Бриф заполнен</div>` : ''}
+                    </div>
+                `;
+
+                const colEl = document.getElementById(`col-${status}`);
+                if (colEl) colEl.innerHTML += cardHtml;
+            });
+
+            cols.forEach(c => {
+                const badge = document.getElementById(`count-${c}`);
+                if (badge) badge.innerText = counts[c] || 0;
+            });
+        }
+
+        async function openChat(telegramId, name) {
+            document.getElementById('modalTitle').innerText = `Диалог с ${name}`;
+            const modal = document.getElementById('chatModal');
+            const chatBox = document.getElementById('chatBox');
+            chatBox.innerHTML = '<div style="color: var(--text-muted); text-align: center;">Загрузка диалога...</div>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/chat_history?telegram_id=${telegramId}`);
+                const messages = await res.json();
+                if (messages.length === 0) {
+                    chatBox.innerHTML = '<div style="color: var(--text-muted); text-align: center;">Диалог пуст</div>';
+                } else {
+                    chatBox.innerHTML = messages.map(m => `
+                        <div class="chat-msg ${m.sender.toLowerCase()}">
+                            <div style="font-size: 11px; opacity: 0.7; margin-bottom: 2px;">${m.sender === 'USER' ? 'Клиент' : 'ИИ-Бот ('+m.bot_variant+')'}</div>
+                            <div>${m.text}</div>
+                        </div>
+                    `).join('');
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                }
+            } catch (err) {
+                chatBox.innerHTML = 'Ошибка загрузки диалога';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('chatModal').style.display = 'none';
+        }
+
+        loadCRM();
+        setInterval(loadCRM, 10000); // Auto-refresh every 10 seconds
+    </script>
+</body>
+</html>
