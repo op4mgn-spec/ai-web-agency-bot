@@ -18,31 +18,37 @@
         }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', system-ui, sans-serif; }
         body { background: var(--bg-dark); color: var(--text-main); min-height: 100vh; padding: 20px; }
-        header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 25px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
         .logo { font-size: 22px; font-weight: bold; color: var(--primary); display: flex; align-items: center; gap: 10px; }
-        .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
-        .stat-card { background: var(--card-bg); padding: 20px; border-radius: 10px; border: 1px solid var(--border); }
-        .stat-card h4 { font-size: 13px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; }
-        .stat-card .value { font-size: 26px; font-weight: bold; }
         
-        .kanban { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; overflow-x: auto; }
-        .column { background: #182234; padding: 15px; border-radius: 12px; border: 1px solid var(--border); min-height: 500px; }
-        .column-header { font-size: 15px; font-weight: bold; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-        .badge { background: var(--border); padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+        .filter-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; background: #182234; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); }
+        .filter-btn { background: var(--card-bg); color: var(--text-muted); border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+        .filter-btn:hover { border-color: var(--primary); color: var(--text-main); }
+        .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); font-weight: 600; }
+
+        .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .stat-card { background: var(--card-bg); padding: 18px; border-radius: 10px; border: 1px solid var(--border); }
+        .stat-card h4 { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; }
+        .stat-card .value { font-size: 24px; font-weight: bold; }
         
-        .lead-card { background: var(--card-bg); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 12px; cursor: pointer; transition: 0.2s; }
+        .kanban { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; overflow-x: auto; }
+        .column { background: #182234; padding: 14px; border-radius: 12px; border: 1px solid var(--border); min-height: 500px; }
+        .column-header { font-size: 14px; font-weight: bold; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+        .badge { background: var(--border); padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+        
+        .lead-card { background: var(--card-bg); padding: 14px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 12px; cursor: pointer; transition: 0.2s; }
         .lead-card:hover { border-color: var(--primary); transform: translateY(-2px); }
-        .lead-name { font-weight: bold; font-size: 15px; margin-bottom: 5px; display: flex; justify-content: space-between; }
-        .lead-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
-        .variant-tag { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-        .incomplete-warning { color: var(--warning); font-size: 12px; margin-top: 5px; font-weight: 500; }
+        .lead-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; display: flex; justify-content: space-between; }
+        .lead-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+        .variant-tag { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+        .incomplete-warning { color: var(--warning); font-size: 11px; margin-top: 5px; font-weight: 500; }
 
         /* Modal for Chat History */
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 1000; }
-        .modal-content { background: var(--card-bg); width: 90%; max-width: 650px; height: 80vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid var(--border); }
+        .modal-content { background: var(--card-bg); width: 90%; max-width: 680px; height: 85vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid var(--border); }
         .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-        .chat-msg { max-width: 80%; padding: 10px 14px; border-radius: 10px; font-size: 14px; line-height: 1.4; }
+        .chat-msg { max-width: 85%; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.4; }
         .chat-msg.user { align-self: flex-start; background: #334155; color: white; }
         .chat-msg.bot { align-self: flex-end; background: var(--primary); color: white; }
         .close-btn { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
@@ -52,10 +58,19 @@
     <header>
         <div class="logo">⚡️ AI Web Agency CRM & A/B Center</div>
         <div style="display: flex; gap: 10px;">
-            <button onclick="loadCRM()" style="background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">🔄 Обновить данные</button>
+            <button onclick="loadCRM()" style="background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500;">🔄 Обновить данные</button>
             <a href="/api/export_crm" style="background: var(--success); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center;">📥 Экспорт в CSV</a>
         </div>
     </header>
+
+    <div class="filter-bar">
+        <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">ИИ-Продавцы:</span>
+        <button class="filter-btn active" id="btn-ALL" onclick="setPersonaFilter('ALL')">🌐 Все варианты (Показать всех)</button>
+        <button class="filter-btn" id="btn-A" onclick="setPersonaFilter('Variant A (Консультант)')">💬 Variant A (Консультант)</button>
+        <button class="filter-btn" id="btn-B" onclick="setPersonaFilter('Variant B (Прямые Продажи)')">⚡️ Variant B (Прямые Продажи)</button>
+        <button class="filter-btn" id="btn-C" onclick="setPersonaFilter('Variant C (Демо-Специалист)')">🎨 Variant C (Демо-Специалист)</button>
+        <button class="filter-btn" id="btn-D" onclick="setPersonaFilter('Variant D (Архитектор Решений)')">🏗 Variant D (Архитектор Решений)</button>
+    </div>
 
     <div class="stats-bar" id="statsBar">
         <!-- Loaded via JS -->
@@ -67,12 +82,16 @@
             <div id="col-NEW"></div>
         </div>
         <div class="column">
-            <div class="column-header" style="color: var(--warning);">⚠️ Незавершенный бриф <span class="badge" id="count-INCOMPLETE_BRIEF">0</span></div>
+            <div class="column-header" style="color: var(--warning);">⚠️ Бросили бриф / Дожим <span class="badge" id="count-INCOMPLETE_BRIEF">0</span></div>
             <div id="col-INCOMPLETE_BRIEF"></div>
         </div>
         <div class="column">
-            <div class="column-header" style="color: var(--danger);">❌ Отказ / Возражения <span class="badge" id="count-REJECTED">0</span></div>
+            <div class="column-header" style="color: var(--danger);">🛠 Отказ / Доработка админом <span class="badge" id="count-REJECTED">0</span></div>
             <div id="col-REJECTED"></div>
+        </div>
+        <div class="column">
+            <div class="column-header" style="color: #f87171;">📉 Неудачная сделка <span class="badge" id="count-LOST">0</span></div>
+            <div id="col-LOST"></div>
         </div>
         <div class="column">
             <div class="column-header" style="color: var(--primary);">💰 Оплачены / Бриф <span class="badge" id="count-WAITING_PAYMENT">0</span></div>
@@ -100,15 +119,45 @@
     </div>
 
     <script>
+        let rawCRMData = null;
+        let selectedPersona = 'ALL';
+
         async function loadCRM() {
             try {
                 const res = await fetch('/api/crm_data');
-                const data = await res.json();
-                renderStats(data.ab_stats);
-                renderKanban(data.leads);
+                rawCRMData = await res.json();
+                applyPersonaFilter();
             } catch (err) {
                 console.error("Error loading CRM data:", err);
             }
+        }
+
+        function setPersonaFilter(persona) {
+            selectedPersona = persona;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            
+            if (persona === 'ALL') document.getElementById('btn-ALL').classList.add('active');
+            else if (persona === 'Variant A (Консультант)') document.getElementById('btn-A').classList.add('active');
+            else if (persona === 'Variant B (Прямые Продажи)') document.getElementById('btn-B').classList.add('active');
+            else if (persona === 'Variant C (Демо-Специалист)') document.getElementById('btn-C').classList.add('active');
+            else if (persona === 'Variant D (Архитектор Решений)') document.getElementById('btn-D').classList.add('active');
+
+            applyPersonaFilter();
+        }
+
+        function applyPersonaFilter() {
+            if (!rawCRMData) return;
+
+            let leads = rawCRMData.leads;
+            let abStats = rawCRMData.ab_stats;
+
+            if (selectedPersona !== 'ALL') {
+                leads = rawCRMData.leads.filter(l => l.bot_variant === selectedPersona);
+                abStats = rawCRMData.ab_stats.filter(s => s.bot_variant === selectedPersona);
+            }
+
+            renderStats(abStats);
+            renderKanban(leads);
         }
 
         function renderStats(abStats) {
@@ -116,7 +165,7 @@
             statsBar.innerHTML = abStats.map(s => `
                 <div class="stat-card">
                     <h4>${s.bot_variant || 'Основной'}</h4>
-                    <div class="value">${s.total_leads} <span style="font-size: 14px; color: var(--text-muted);">лидов</span></div>
+                    <div class="value">${s.total_leads} <span style="font-size: 13px; color: var(--text-muted);">лидов</span></div>
                     <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">
                         Брифы: ${s.briefs_count} | Продажи: <strong style="color: var(--success);">${s.sales_count}</strong>
                     </div>
@@ -131,10 +180,12 @@
         }
 
         function renderKanban(leads) {
-            const cols = ['NEW', 'INCOMPLETE_BRIEF', 'REJECTED', 'WAITING_PAYMENT', 'GENERATED', 'DELIVERED'];
+            const cols = ['NEW', 'INCOMPLETE_BRIEF', 'REJECTED', 'LOST', 'WAITING_PAYMENT', 'GENERATED', 'DELIVERED'];
             cols.forEach(c => {
-                document.getElementById(`col-${c}`).innerHTML = '';
-                document.getElementById(`count-${c}`).innerText = '0';
+                const colEl = document.getElementById(`col-${c}`);
+                if (colEl) colEl.innerHTML = '';
+                const badge = document.getElementById(`count-${c}`);
+                if (badge) badge.innerText = '0';
             });
 
             const counts = {};
@@ -142,8 +193,10 @@
                 let status = l.status || 'NEW';
                 if (['BRIEFING', 'INCOMPLETE_BRIEF', 'BRIEF_RECOVERY_SENT', 'INCOMPLETE_RECOVERED_NOTIFIED'].includes(status)) {
                     status = 'INCOMPLETE_BRIEF';
-                } else if (['REJECTED', 'OBJECTION', 'LOST', 'FAILED', 'CANCELLED'].includes(status)) {
+                } else if (['REJECTED', 'OBJECTION', 'NEED_ADMIN'].includes(status)) {
                     status = 'REJECTED';
+                } else if (['LOST', 'FAILED', 'CANCELLED'].includes(status)) {
+                    status = 'LOST';
                 } else if (['WAITING_PAYMENT'].includes(status)) {
                     status = 'WAITING_PAYMENT';
                 } else if (['PAID', 'GENERATED'].includes(status)) {
@@ -167,7 +220,7 @@
                         </div>
                         ${l.brief_step > 0 && l.brief_step < 7 ? `<div class="incomplete-warning">⚠️ Бросил бриф на шаге ${l.brief_step}/7</div>` : ''}
                         ${l.brief_data && l.brief_data !== '{}' ? `<div style="font-size: 11px; color: var(--success); margin-top: 4px;">✓ Бриф заполнен</div>` : ''}
-                        ${l.feedback ? `<div style="font-size: 11px; color: var(--danger); margin-top: 4px; font-weight: 500;">💬 ${l.feedback}</div>` : ''}
+                        ${l.feedback ? `<div style="font-size: 11px; color: ${status === 'LOST' ? '#f87171' : 'var(--warning)'}; margin-top: 4px; font-weight: 500;">💬 ${l.feedback}</div>` : ''}
                     </div>
                 `;
 
@@ -212,7 +265,7 @@
         }
 
         loadCRM();
-        setInterval(loadCRM, 10000); // Auto-refresh every 10 seconds
+        setInterval(loadCRM, 10000);
     </script>
 </body>
 </html>
