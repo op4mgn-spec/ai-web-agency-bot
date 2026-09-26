@@ -98,13 +98,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👋 Здравствуйте, {user.first_name}!\n\n"
         f"Я — ИИ-консультант **AI Web Studio**.\n"
         f"Мы создаем профессиональные продающие сайты для бизнеса под ключ за 24 часа.\n\n"
-        f"💬 Напишите мне любой вопрос в чат (про цены, гарантии, примеры) или нажмите кнопку ниже для оформления заказа!"
+        f"💬 Задайте мне любой вопрос текстом или 🎤 **надиктуйте голосом**! Я с радостью отвечу и помогу составить бриф."
     )
     if is_admin:
         welcome_text += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.** Вы получаете все уведомления о новых заказах, видите CRM и утверждаете сайты."
     
     keyboard = [
-        [InlineKeyboardButton("📝 Заполнить подробный бриф", callback_data="start_brief")],
+        [InlineKeyboardButton("📝 Заполнить бриф (текст или 🎤 голос)", callback_data="start_brief")],
         [InlineKeyboardButton("❓ Задать вопрос менеджеру", callback_data="ask_question")],
         [InlineKeyboardButton("📞 Контакты основателя", callback_data="contact_info")]
     ]
@@ -126,13 +126,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["brief"] = {}
         db.update_brief_step(user.id, 1)
         
-        msg = "📋 **Разработка сайта — Шаг 1 из 7**\n\nНапишите **официальное название вашей компании** или название проекта:"
+        msg = "📋 **Разработка сайта — Шаг 1 из 7**\n\nНапишите или 🎤 **надиктуйте голосом** официальное название вашей компании или название проекта:"
         db.log_chat_message(user.id, "BOT", msg, bot_variant)
         await query.message.reply_text(msg, parse_mode="Markdown")
 
     elif data == "ask_question":
         context.user_data["brief_step"] = None
-        msg = "Задайте любой интересующий вас вопрос по разработке сайта, стоимости или гарантиям!"
+        msg = "💬 Задайте любой интересующий вас вопрос текстом или 🎤 **надиктуйте голосом**!"
         db.log_chat_message(user.id, "BOT", msg, bot_variant)
         await query.message.reply_text(msg)
 
@@ -213,42 +213,42 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["brief"]["company_name"] = text
         context.user_data["brief_step"] = 2
         db.update_brief_step(user.id, 2)
-        await reply_and_log(update, "✅ Принято!\n\n**Шаг 2 из 7**: Укажите вашу **сферу бизнеса и целевую аудиторию** (кто ваши клиенты?):", user.id, bot_variant, parse_mode="Markdown")
+        await reply_and_log(update, "✅ Принято!\n\n**Шаг 2 из 7**: Напишите или 🎤 **надиктуйте голосом** вашу **сферу бизнеса и целевую аудиторию** (кто ваши клиенты?):", user.id, bot_variant, parse_mode="Markdown")
         return
         
     elif step == 2:
         context.user_data["brief"]["niche"] = text
         context.user_data["brief_step"] = 3
         db.update_brief_step(user.id, 3)
-        await reply_and_log(update, "✅ Отлично!\n\n**Шаг 3 из 7**: Перечислите **основные товары/услуги и их цены**:", user.id, bot_variant, parse_mode="Markdown")
+        await reply_and_log(update, "✅ Отлично!\n\n**Шаг 3 из 7**: Напишите или 🎤 **надиктуйте голосом** **основные товары/услуги и их цены**:", user.id, bot_variant, parse_mode="Markdown")
         return
 
     elif step == 3:
         context.user_data["brief"]["services"] = text
         context.user_data["brief_step"] = 4
         db.update_brief_step(user.id, 4)
-        await reply_and_log(update, "✅ Записал!\n\n**Шаг 4 из 7**: Ваше **главное преимущество или УТП** (почему клиенты должны выбрать вас?):", user.id, bot_variant, parse_mode="Markdown")
+        await reply_and_log(update, "✅ Записал!\n\n**Шаг 4 из 7**: Напишите или 🎤 **надиктуйте голосом** ваше **главное преимущество или УТП** (почему клиенты должны выбрать вас?):", user.id, bot_variant, parse_mode="Markdown")
         return
 
     elif step == 4:
         context.user_data["brief"]["utp"] = text
         context.user_data["brief_step"] = 5
         db.update_brief_step(user.id, 5)
-        await reply_and_log(update, "✅ Отлично!\n\n**Шаг 5 из 7**: Пожелания по **стилю и цветовой гамме** (например: синий/строгий, яркий/современный):", user.id, bot_variant, parse_mode="Markdown")
+        await reply_and_log(update, "✅ Отлично!\n\n**Шаг 5 из 7**: Напишите или 🎤 **надиктуйте голосом** пожелания по **стилю и цветовой гамме** (например: синий/строгий, яркий/современный):", user.id, bot_variant, parse_mode="Markdown")
         return
 
     elif step == 5:
         context.user_data["brief"]["color_theme"] = text
         context.user_data["brief_step"] = 6
         db.update_brief_step(user.id, 6)
-        await reply_and_log(update, "✅ Принято!\n\n**Шаг 6 из 7**: Какие **блоки нужны на сайте**? (например: Калькулятор, Отзывы, Галерея работ, Вопросы-ответы):", user.id, bot_variant, parse_mode="Markdown")
+        await reply_and_log(update, "✅ Принято!\n\n**Шаг 6 из 7**: Напишите или 🎤 **надиктуйте голосом**, какие **блоки нужны на сайте**? (например: Калькулятор, Отзывы, Галерея работ, Вопросы-ответы):", user.id, bot_variant, parse_mode="Markdown")
         return
 
     elif step == 6:
         context.user_data["brief"]["blocks"] = text
         context.user_data["brief_step"] = 7
         db.update_brief_step(user.id, 7)
-        await reply_and_log(update, "✅ Запомнил!\n\n**Шаг 7 из 7**: Укажите **номер телефона / WhatsApp** для клиентов на сайте:", user.id, bot_variant, parse_mode="Markdown")
+        await reply_and_log(update, "✅ Запомнил!\n\n**Шаг 7 из 7**: Напишите или 🎤 **надиктуйте голосом** **номер телефона / WhatsApp** для клиентов на сайте:", user.id, bot_variant, parse_mode="Markdown")
         return
 
     elif step == 7:

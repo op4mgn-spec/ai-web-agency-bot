@@ -191,13 +191,13 @@ def process_telegram_update(update_data):
         if data == "start_brief":
             user_states[chat_id] = {"step": 1, "brief": {}}
             db.update_brief_step(chat_id, 1)
-            msg = "📋 **Разработка сайта — Шаг 1 из 7**\n\nНапишите **официальное название вашей компании** или проекта:"
+            msg = "📋 **Разработка сайта — Шаг 1 из 7**\n\nНапишите или 🎤 **надиктуйте голосом** официальное название вашей компании или проекта:"
             db.log_chat_message(chat_id, "BOT", msg, bot_variant)
             send_telegram_message(chat_id, msg)
 
         elif data == "ask_question":
             user_states[chat_id] = {"step": None}
-            msg = "Задайте любой вопрос по созданию сайта, стоимости или гарантиям!"
+            msg = "💬 Задайте любой вопрос текстом или 🎤 **надиктуйте голосом** по созданию сайта, стоимости или гарантиям!"
             db.log_chat_message(chat_id, "BOT", msg, bot_variant)
             send_telegram_message(chat_id, msg)
 
@@ -460,11 +460,11 @@ def process_telegram_update(update_data):
                     f"🎯 Мы изучили ваш сайт (`{target_url}`) и подготовили специализированное предложение по созданию "
                     f"высококонверсионного лендинга нового поколения под ключ за 24 часа.\n\n"
                     f"💰 **Стоимость разработки под ключ**: 9 900 руб.\n"
-                    f"💬 Посмотрите готовые демо-макеты для вашей сферы или отправьте любой вопрос в чат!"
+                    f"💬 Вы можете задать вопрос текстом или 🎤 **надиктовать голосом**, а также посмотреть готовые демо-макеты!"
                 )
                 buttons = [
                     [{"text": "🎨 Примеры сайтов по нишам (6 демо)", "callback_data": "show_demo_niches"}],
-                    [{"text": "📝 Заполнить подробный бриф", "callback_data": "start_brief"}],
+                    [{"text": "📝 Заполнить бриф (текст или 🎤 голос)", "callback_data": "start_brief"}],
                     [{"text": "❓ Задать вопрос менеджеру", "callback_data": "ask_question"}],
                     [{"text": "📞 Контакты основателя", "callback_data": "contact_info"}]
                 ]
@@ -473,11 +473,11 @@ def process_telegram_update(update_data):
                     f"👋 Здравствуйте, {user.get('first_name')}!\n\n"
                     f"Я — ИИ-консультант **AI Web Studio**.\n"
                     f"Мы создаем продающие сайты под ключ за 24 часа всего за 9 900 руб.\n\n"
-                    f"💬 Задайте мне любой вопрос в чат или посмотрите примеры наших работ!"
+                    f"💬 Задайте мне любой вопрос текстом или 🎤 **надиктовать голосом**! Я с радостью отвечу и помогу составить бриф."
                 )
                 buttons = [
                     [{"text": "🎨 Примеры сайтов по нишам (6 демо)", "callback_data": "show_demo_niches"}],
-                    [{"text": "📝 Заполнить подробный бриф", "callback_data": "start_brief"}],
+                    [{"text": "📝 Заполнить бриф (текст или 🎤 голос)", "callback_data": "start_brief"}],
                     [{"text": "❓ Задать вопрос менеджеру", "callback_data": "ask_question"}],
                     [{"text": "📞 Контакты основателя", "callback_data": "contact_info"}]
                 ]
@@ -499,7 +499,7 @@ def process_telegram_update(update_data):
             state["brief"]["company_name"] = text
             state["step"] = 2
             db.update_brief_step(chat_id, 2)
-            m = "✅ Принято!\n\n**Шаг 2 из 7**: Укажите вашу **сферу бизнеса и целевую аудиторию**:"
+            m = "✅ Принято!\n\n**Шаг 2 из 7**: Напишите или 🎤 **надиктуйте голосом** вашу **сферу бизнеса и целевую аудиторию**:"
             db.log_chat_message(chat_id, "BOT", m, bot_variant)
             send_telegram_message(chat_id, m)
             return
@@ -508,7 +508,7 @@ def process_telegram_update(update_data):
             state["brief"]["niche"] = text
             state["step"] = 3
             db.update_brief_step(chat_id, 3)
-            m = "✅ Отлично!\n\n**Шаг 3 из 7**: Перечислите **основные товары/услуги и цены**:"
+            m = "✅ Отлично!\n\n**Шаг 3 из 7**: Напишите или 🎤 **надиктуйте голосом** **основные товары/услуги и цены**:"
             db.log_chat_message(chat_id, "BOT", m, bot_variant)
             send_telegram_message(chat_id, m)
             return
@@ -517,7 +517,7 @@ def process_telegram_update(update_data):
             state["brief"]["services"] = text
             state["step"] = 4
             db.update_brief_step(chat_id, 4)
-            m = "✅ Записал!\n\n**Шаг 4 из 7**: Ваше **главное преимущество или УТП**:"
+            m = "✅ Записал!\n\n**Шаг 4 из 7**: Напишите или 🎤 **надиктуйте голосом** ваше **главное преимущество или УТП**:"
             db.log_chat_message(chat_id, "BOT", m, bot_variant)
             send_telegram_message(chat_id, m)
             return
@@ -526,7 +526,7 @@ def process_telegram_update(update_data):
             state["brief"]["utp"] = text
             state["step"] = 5
             db.update_brief_step(chat_id, 5)
-            m = "✅ Отлично!\n\n**Шаг 5 из 7**: Пожелания по **стилю и цветам**:"
+            m = "✅ Отлично!\n\n**Шаг 5 из 7**: Напишите или 🎤 **надиктуйте голосом** пожелания по **стилю и цветам**:"
             db.log_chat_message(chat_id, "BOT", m, bot_variant)
             send_telegram_message(chat_id, m)
             return
@@ -535,7 +535,7 @@ def process_telegram_update(update_data):
             state["brief"]["color_theme"] = text
             state["step"] = 6
             db.update_brief_step(chat_id, 6)
-            m = "✅ Принято!\n\n**Шаг 6 из 7**: Какие **блоки нужны на сайте** (Калькулятор, Отзывы, Ответа):"
+            m = "✅ Принято!\n\n**Шаг 6 из 7**: Напишите или 🎤 **надиктуйте голосом**, какие **блоки нужны на сайте** (Калькулятор, Отзывы, Вопросы):"
             db.log_chat_message(chat_id, "BOT", m, bot_variant)
             send_telegram_message(chat_id, m)
             return
@@ -544,7 +544,7 @@ def process_telegram_update(update_data):
             state["brief"]["blocks"] = text
             state["step"] = 7
             db.update_brief_step(chat_id, 7)
-            m = "✅ Запомнил!\n\n**Шаг 7 из 7**: Укажите **номер телефона / WhatsApp** на сайте:"
+            m = "✅ Запомнил!\n\n**Шаг 7 из 7**: Напишите или 🎤 **надиктуйте голосом** **номер телефона / WhatsApp** на сайте:"
             db.log_chat_message(chat_id, "BOT", m, bot_variant)
             send_telegram_message(chat_id, m)
             return
