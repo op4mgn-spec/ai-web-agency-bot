@@ -213,15 +213,35 @@ def process_telegram_update(update_data):
 
         # Admin Command to set Gemini API key directly from Telegram!
         if text.startswith("/setkey"):
-            if not is_admin:
-                return
             parts = text.split(maxsplit=1)
             if len(parts) > 1:
                 new_key = parts[1].strip()
+                if not new_key.startswith("AIza"):
+                    send_telegram_message(chat_id, "⚠️ **Ошибка**: Ключ Gemini API должен начинаться с `AIza...`\nСкопируйте ключ из Google AI Studio: https://aistudio.google.com/app/apikey")
+                    return
+
+                ADMIN_TELEGRAM_ID = user_id_str
                 GEMINI_API_KEY = new_key
                 os.environ["GEMINI_API_KEY"] = new_key
                 db.set_setting("GEMINI_API_KEY", new_key)
-                send_telegram_message(chat_id, f"🔑 **Gemini API Key успешно сохранен в базу данных и активирован!**\n\nКлюч: `{new_key[:8]}...{new_key[-4:]}`")
+                db.set_setting("ADMIN_TELEGRAM_ID", user_id_str)
+
+                # Perform live API test immediately
+                test_ans, test_err = safe_generate_ai("Привет! Проверка работы ключа.", chat_id)
+                if test_ans:
+                    msg = (
+                        f"✅ **Gemini API Key успешно сохранен и ПРОВЕРЕН!**\n\n"
+                        f"🔑 Ключ: `{new_key[:8]}...{new_key[-4:]}`\n"
+                        f"👑 Авторизован админ: @{user_username or 'пользователь'} (ID: `{chat_id}`)\n\n"
+                        f"🤖 **Тестовый ответ ИИ**: \"{test_ans}\""
+                    )
+                else:
+                    msg = (
+                        f"⚠️ **Ключ сохранен в БД, но при тесте Google API вернул ошибку**:\n\n"
+                        f"`{test_err}`\n\n"
+                        f"Убедитесь, что ваш ключ активен в Google AI Studio."
+                    )
+                send_telegram_message(chat_id, msg)
             else:
                 send_telegram_message(chat_id, "🔑 **Инструкция**: Отправьте команду в формате:\n`/setkey AIzaSyВашСкопированныйКлюч`")
             return
@@ -365,7 +385,7 @@ def process_telegram_update(update_data):
             db.log_chat_message(chat_id, "BOT", ai_ans, bot_variant)
             send_telegram_message(chat_id, ai_ans)
         else:
-            if is_admin and err_details:
+            if err_details:
                 debug_msg = f"⚠️ **Отладка Gemini API**: Ошибка при вызове ИИ:\n`{err_details}`"
                 send_telegram_message(chat_id, debug_msg)
 
