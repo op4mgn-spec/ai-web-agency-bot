@@ -3,6 +3,7 @@ import socketserver
 import os
 import json
 import urllib.parse
+import threading
 import requests
 import db
 import webhook_engine
@@ -91,18 +92,17 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
             
+            # Immediately acknowledge webhook to Telegram to avoid 5-second timeout retries!
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"OK")
+
             try:
                 update_data = json.loads(post_data.decode('utf-8'))
-                webhook_engine.process_telegram_update(update_data)
-                
-                self.send_response(200)
-                self.send_header("Content-Type", "text/plain")
-                self.end_headers()
-                self.wfile.write(b"OK")
+                threading.Thread(target=webhook_engine.process_telegram_update, args=(update_data,), daemon=True).start()
             except Exception as e:
-                print(f"Error processing webhook POST: {e}")
-                self.send_response(500)
-                self.end_headers()
+                print(f"Error starting async webhook worker: {e}")
             return
 
         self.send_response(404)
