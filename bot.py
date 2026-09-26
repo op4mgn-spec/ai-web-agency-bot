@@ -313,15 +313,13 @@ async def async_main():
     
     server.telegram_app = app
 
-    await app.initialize()
-    await app.start()
-    await app.bot.delete_webhook(drop_pending_updates=True)
-    await app.updater.start_polling(drop_pending_updates=True)
-    print("✅ Telegram Sales Bot polling started cleanly with zero webhook conflicts!")
-
-    # Keep async loop running indefinitely
-    while True:
-        await asyncio.sleep(3600)
+    print(f"Starting Telegram Sales Bot context manager with token {TELEGRAM_BOT_TOKEN[:10]}...")
+    async with app:
+        await app.bot.delete_webhook(drop_pending_updates=True)
+        await app.start()
+        await app.updater.start_polling(drop_pending_updates=True)
+        print("✅ Telegram Sales Bot polling engine ACTIVE and listening to updates!")
+        await asyncio.Event().wait()
 
 def main():
     try:
