@@ -4,7 +4,6 @@ import logging
 import requests
 import db
 from generator import generate_website_html
-from google import genai
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "8740453272:AAG5MyW2cvsiPaRT3i3V4feM7bRKoGhyFbU"
 ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID")
@@ -41,22 +40,32 @@ def answer_callback_query(callback_query_id):
         pass
 
 def safe_generate_ai(prompt):
-    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+    global GEMINI_API_KEY
+    key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
+    if not key or key == "your_gemini_api_key_here":
+        print("Gemini API Key is missing or default")
         return ""
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        for m in ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']:
-            try:
-                res = client.models.generate_content(model=m, contents=prompt)
-                if res and res.text:
-                    return res.text.strip()
-            except Exception:
-                continue
-    except Exception as e:
-        print(f"Gemini API Error: {e}")
+        
+    for model_name in ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-pro']:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
+        headers = {"Content-Type": "application/json"}
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        try:
+            r = requests.post(url, json=payload, headers=headers, timeout=10)
+            data = r.json()
+            if "candidates" in data and len(data["candidates"]) > 0:
+                parts = data["candidates"][0].get("content", {}).get("parts", [])
+                if parts and "text" in parts[0]:
+                    return parts[0]["text"].strip()
+            elif "error" in data:
+                print(f"Gemini API Error ({model_name}): {data['error'].get('message')}")
+        except Exception as e:
+            print(f"Gemini REST Exception ({model_name}): {e}")
+            continue
     return ""
 
 def process_telegram_update(update_data):
+    global GEMINI_API_KEY
     db.init_db()
 
     # Handle Callback Queries (Button Clicks)
@@ -116,8 +125,7 @@ def process_telegram_update(update_data):
                 send_telegram_message(chat_id, f"⏳ Начинаю ИИ-генерацию сайта для {brief_data.get('company_name')}...")
                 site_id = f"lead_{target_id}"
                 html_path = generate_website_html(brief_data, site_id)
-                site_url = f"http://localhost:8000/generated_sites/{site_id}.html"
-                db.save_generated_site(target_id, site_url, html_path)
+                db.save_generated_site(target_id, f"http://localhost:8000/generated_sites/{site_id}.html", html_path)
 
                 review = (
                     f"✅ **САЙТ СГЕНЕРИРОВАН!**\n\n"
@@ -162,6 +170,14 @@ def process_telegram_update(update_data):
 
         is_admin = (user.get("username", "").lower() == "bers1q")
 
+        # Admin Command to set Gemini API key directly from Telegram!
+        if text.startswith("/setkey ") and is_admin:
+            new_key = text.split(" ", 1)[1].strip()
+            GEMINI_API_KEY = new_key
+            os.environ["GEMINI_API_KEY"] = new_key
+            send_telegram_message(chat_id, "🔑 **Gemini API Key успешно обновлен и активирован!**")
+            return
+
         # Handle /start
         if text == "/start":
             user_states[chat_id] = {"step": None, "brief": {}}
@@ -172,7 +188,7 @@ def process_telegram_update(update_data):
                 f"💬 Задайте мне любой вопрос в чат или нажмите кнопку ниже для заказа!"
             )
             if is_admin:
-                welcome += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.** Вы получаете все заказы и утверждаете сайты."
+                welcome += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.** Вы можете установить ключ API командой `/setkey AIzaSy...`."
 
             kbd = {"inline_keyboard": [
                 [{"text": "📝 Заполнить подробный бриф", "callback_data": "start_brief"}],
@@ -263,7 +279,7 @@ def process_telegram_update(update_data):
             send_telegram_message(chat_id, summary, reply_markup=kbd)
             return
 
-        # General Conversational Q&A via Gemini API or Fallback
+        # General Conversational Q&A via Gemini REST API
         prompt = f"{SYSTEM_SALES_PROMPT}\nВопрос клиента: '{text}'"
         ai_ans = safe_generate_ai(prompt)
 
