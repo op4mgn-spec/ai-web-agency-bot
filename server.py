@@ -4,13 +4,14 @@ import os
 import json
 import urllib.parse
 import asyncio
+import requests
 import db
 
 PORT = int(os.getenv("PORT", 8000))
 DIRECTORY = os.path.dirname(__file__)
 
-# Global reference to Telegram Application for Webhook processing
 telegram_app = None
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "8740453272:AAG5MyW2cvsiPaRT3i3V4feM7bRKoGhyFbU"
 
 class CRMHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -21,8 +22,22 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
 
+        # Diagnostic endpoint: Tests Telegram API directly from cloud container!
+        if path == "/test-tg":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            try:
+                r_me = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe", timeout=5).json()
+                r_wh = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getWebhookInfo", timeout=5).json()
+                data = {"getMe": r_me, "getWebhookInfo": r_wh, "RENDER_EXTERNAL_URL": os.getenv("RENDER_EXTERNAL_URL")}
+                self.wfile.write(json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8"))
+            except Exception as e:
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
         # Healthcheck / Keep-Alive Ping
-        if path == "/ping" or path == "/health":
+        elif path == "/ping" or path == "/health":
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
             self.end_headers()
