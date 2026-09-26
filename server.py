@@ -3,14 +3,13 @@ import socketserver
 import os
 import json
 import urllib.parse
-import asyncio
 import requests
 import db
+import webhook_engine
 
 PORT = int(os.getenv("PORT", 8000))
 DIRECTORY = os.path.dirname(__file__)
 
-telegram_app = None
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "8740453272:AAG5MyW2cvsiPaRT3i3V4feM7bRKoGhyFbU"
 
 class CRMHandler(http.server.SimpleHTTPRequestHandler):
@@ -87,19 +86,14 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
-        # Handle Telegram Webhook POST requests
+        # Handle Telegram Webhook POST requests via Webhook Engine
         if path == "/webhook" or path == "/telegram-webhook":
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
             
             try:
-                from telegram import Update
                 update_data = json.loads(post_data.decode('utf-8'))
-                
-                if telegram_app:
-                    loop = asyncio.get_event_loop()
-                    update = Update.de_json(update_data, telegram_app.bot)
-                    asyncio.run_coroutine_threadsafe(telegram_app.process_update(update), loop)
+                webhook_engine.process_telegram_update(update_data)
                 
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain")
