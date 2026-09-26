@@ -173,6 +173,81 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
                 print(f"Error starting async webhook worker: {e}")
             return
 
+        # API: Direct Admin Message to Telegram Client
+        elif path == "/api/send_admin_message":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            telegram_id = body.get('telegram_id')
+            text = body.get('text', '').strip()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+
+            if not telegram_id or not text:
+                self.wfile.write(json.dumps({"error": "Missing telegram_id or text"}).encode('utf-8'))
+                return
+
+            lead = db.get_or_create_lead(int(telegram_id))
+            bot_variant = lead.get('bot_variant', 'Variant A (Консультант)')
+
+            # Send directly to client's Telegram chat from Bot
+            sent_res = webhook_engine.send_telegram_message(int(telegram_id), text)
+            
+            # Log as BOT message in dialog history
+            db.log_chat_message(int(telegram_id), "BOT", f"✍️ [Менеджер]: {text}", bot_variant)
+            
+            # If lead was in REJECTED/OBJECTION, advance to ADMIN_NEGOTIATING
+            if lead.get('status') in ['REJECTED', 'OBJECTION', 'LOST']:
+                db.update_lead_status(int(telegram_id), 'ADMIN_NEGOTIATING')
+
+            res_data = {"status": "ok", "message": "Сообщение отправлено клиенту в Telegram!", "sent": sent_res}
+            self.wfile.write(json.dumps(res_data, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # API: Verify / Simulate Payment for Lead
+        elif path == "/api/verify_payment":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            telegram_id = body.get('telegram_id')
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+
+            if not telegram_id:
+                self.wfile.write(json.dumps({"error": "Missing telegram_id"}).encode('utf-8'))
+                return
+
+            db.update_lead_status(int(telegram_id), "PAID")
+            
+            # Notify client in Telegram
+            msg = "✅ **Оплата 9 900 руб. официально подтверждена!**\n\nВаш заказ зафиксирован в системе. Арт-директор приступил к сборке и утверждению макета!"
+            webhook_engine.send_telegram_message(int(telegram_id), msg)
+            db.log_chat_message(int(telegram_id), "BOT", msg, "Система")
+
+            self.wfile.write(json.dumps({"status": "ok", "message": "Оплата подтверждена!"}).encode('utf-8'))
+            return
+
+        # API: Update Lead Status from CRM
+        elif path == "/api/update_lead_status":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            telegram_id = body.get('telegram_id')
+            new_status = body.get('status')
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+
+            if not telegram_id or not new_status:
+                self.wfile.write(json.dumps({"error": "Missing args"}).encode('utf-8'))
+                return
+
+            db.update_lead_status(int(telegram_id), new_status)
+            self.wfile.write(json.dumps({"status": "ok", "new_status": new_status}).encode('utf-8'))
+            return
+
         self.send_response(404)
         self.end_headers()
 

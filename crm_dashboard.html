@@ -31,9 +31,9 @@
         .stat-card h4 { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; }
         .stat-card .value { font-size: 24px; font-weight: bold; }
         
-        .kanban { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; overflow-x: auto; }
-        .column { background: #182234; padding: 14px; border-radius: 12px; border: 1px solid var(--border); min-height: 500px; }
-        .column-header { font-size: 14px; font-weight: bold; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+        .kanban { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 15px; overflow-x: auto; }
+        .column { background: #182234; padding: 14px; border-radius: 12px; border: 1px solid var(--border); min-height: 520px; }
+        .column-header { font-size: 13px; font-weight: bold; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
         .badge { background: var(--border); padding: 2px 8px; border-radius: 12px; font-size: 11px; }
         
         .lead-card { background: var(--card-bg); padding: 14px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 12px; cursor: pointer; transition: 0.2s; }
@@ -41,16 +41,31 @@
         .lead-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; display: flex; justify-content: space-between; }
         .lead-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
         .variant-tag { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-        .incomplete-warning { color: var(--warning); font-size: 11px; margin-top: 5px; font-weight: 500; }
+        .pay-badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-top: 4px; font-weight: 500; }
+        .pay-badge.pending { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+        .pay-badge.paid { background: rgba(16, 185, 129, 0.15); color: #10b981; }
 
-        /* Modal for Chat History */
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 1000; }
-        .modal-content { background: var(--card-bg); width: 90%; max-width: 680px; height: 85vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid var(--border); }
-        .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        /* Modal for Chat History & Direct Messaging */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: var(--card-bg); width: 92%; max-width: 780px; height: 90vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid var(--border); overflow: hidden; }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #182234; }
+        
+        .action-toolbar { background: #0f172a; padding: 10px 20px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+        .action-btn { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 5px; }
+        .action-btn:hover { border-color: var(--primary); background: #334155; }
+        .action-btn.pay { background: #064e3b; color: #34d399; border-color: #059669; }
+
+        .chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #0f172a; }
         .chat-msg { max-width: 85%; padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.4; }
         .chat-msg.user { align-self: flex-start; background: #334155; color: white; }
         .chat-msg.bot { align-self: flex-end; background: var(--primary); color: white; }
+
+        .modal-footer { padding: 15px 20px; border-top: 1px solid var(--border); background: #182234; display: flex; flex-direction: column; gap: 10px; }
+        .msg-input-box { display: flex; gap: 10px; }
+        .msg-textarea { flex: 1; background: #0f172a; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 8px; font-size: 13px; resize: none; height: 50px; }
+        .msg-textarea:focus { outline: none; border-color: var(--primary); }
+        .send-btn { background: var(--primary); color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s; }
+        .send-btn:hover { background: #2563eb; }
         .close-btn { background: none; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer; }
     </style>
 </head>
@@ -86,41 +101,73 @@
             <div id="col-INCOMPLETE_BRIEF"></div>
         </div>
         <div class="column">
-            <div class="column-header" style="color: var(--danger);">🛠 Отказ / Доработка админом <span class="badge" id="count-REJECTED">0</span></div>
+            <div class="column-header" style="color: var(--danger);">🛠 Отказ / Передано админу <span class="badge" id="count-REJECTED">0</span></div>
             <div id="col-REJECTED"></div>
         </div>
         <div class="column">
-            <div class="column-header" style="color: #f87171;">📉 Неудачная сделка <span class="badge" id="count-LOST">0</span></div>
-            <div id="col-LOST"></div>
-        </div>
-        <div class="column">
-            <div class="column-header" style="color: var(--primary);">💰 Оплачены / Бриф <span class="badge" id="count-WAITING_PAYMENT">0</span></div>
+            <div class="column-header" style="color: #f59e0b;">⏳ Застряли на оплате <span class="badge" id="count-WAITING_PAYMENT">0</span></div>
             <div id="col-WAITING_PAYMENT"></div>
         </div>
         <div class="column">
-            <div class="column-header" style="color: var(--success);">🔨 Сгенерированы <span class="badge" id="count-GENERATED">0</span></div>
+            <div class="column-header" style="color: var(--success);">💰 Оплачено <span class="badge" id="count-PAID">0</span></div>
+            <div id="col-PAID"></div>
+        </div>
+        <div class="column">
+            <div class="column-header" style="color: #3b82f6;">🔨 Сгенерированы <span class="badge" id="count-GENERATED">0</span></div>
             <div id="col-GENERATED"></div>
         </div>
         <div class="column">
             <div class="column-header">✅ Доставлены <span class="badge" id="count-DELIVERED">0</span></div>
             <div id="col-DELIVERED"></div>
         </div>
+        <div class="column">
+            <div class="column-header" style="color: #f87171;">📉 Неудачные сделки <span class="badge" id="count-LOST">0</span></div>
+            <div id="col-LOST"></div>
+        </div>
     </div>
 
-    <!-- Modal Chat Viewer -->
+    <!-- Modal Chat & Direct Messaging -->
     <div class="modal" id="chatModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="modalTitle">История диалога с клиентом</h3>
+                <div>
+                    <h3 id="modalTitle">История диалога с клиентом</h3>
+                    <div id="modalMeta" style="font-size: 12px; color: var(--text-muted); margin-top: 2px;"></div>
+                </div>
                 <button class="close-btn" onclick="closeModal()">✕</button>
             </div>
+            
+            <div class="action-toolbar">
+                <button class="action-btn pay" onclick="verifyPaymentCRM()">💳 Подтвердить оплату (9 900 руб)</button>
+                <select id="statusSelect" onchange="changeStatusCRM(this.value)" style="background: var(--card-bg); color: white; border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-size: 12px;">
+                    <option value="NEW">Этап: 🆕 Новый</option>
+                    <option value="INCOMPLETE_BRIEF">Этап: ⚠️ Бросил бриф</option>
+                    <option value="REJECTED">Этап: 🛠 Отказ / Доработка</option>
+                    <option value="ADMIN_NEGOTIATING">Этап: ✍️ Диалог с админом</option>
+                    <option value="WAITING_PAYMENT">Этап: ⏳ Ожидает оплаты</option>
+                    <option value="PAID">Этап: 💰 Оплачено</option>
+                    <option value="GENERATED">Этап: 🔨 Сгенерирован</option>
+                    <option value="DELIVERED">Этап: ✅ Сдан клиенту</option>
+                    <option value="LOST">Этап: 📉 Проиграно</option>
+                </select>
+                <span id="paymentStatusBadge" style="margin-left: auto; font-weight: 500;"></span>
+            </div>
+
             <div class="chat-box" id="chatBox"></div>
+
+            <div class="modal-footer">
+                <div class="msg-input-box">
+                    <textarea class="msg-textarea" id="crmReplyInput" placeholder="Напишите ответ клиенту... Сообщение сразу придет клиенту в Telegram от имени бота! (Единое окно)"></textarea>
+                    <button class="send-btn" onclick="sendAdminMessageCRM()">🚀 Отправить в Telegram</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         let rawCRMData = null;
         let selectedPersona = 'ALL';
+        let activeTelegramId = null;
 
         async function loadCRM() {
             try {
@@ -180,7 +227,7 @@
         }
 
         function renderKanban(leads) {
-            const cols = ['NEW', 'INCOMPLETE_BRIEF', 'REJECTED', 'LOST', 'WAITING_PAYMENT', 'GENERATED', 'DELIVERED'];
+            const cols = ['NEW', 'INCOMPLETE_BRIEF', 'REJECTED', 'WAITING_PAYMENT', 'PAID', 'GENERATED', 'DELIVERED', 'LOST'];
             cols.forEach(c => {
                 const colEl = document.getElementById(`col-${c}`);
                 if (colEl) colEl.innerHTML = '';
@@ -193,24 +240,33 @@
                 let status = l.status || 'NEW';
                 if (['BRIEFING', 'INCOMPLETE_BRIEF', 'BRIEF_RECOVERY_SENT', 'INCOMPLETE_RECOVERED_NOTIFIED'].includes(status)) {
                     status = 'INCOMPLETE_BRIEF';
-                } else if (['REJECTED', 'OBJECTION', 'NEED_ADMIN'].includes(status)) {
+                } else if (['REJECTED', 'OBJECTION', 'NEED_ADMIN', 'ADMIN_NEGOTIATING'].includes(status)) {
                     status = 'REJECTED';
-                } else if (['LOST', 'FAILED', 'CANCELLED'].includes(status)) {
-                    status = 'LOST';
                 } else if (['WAITING_PAYMENT'].includes(status)) {
                     status = 'WAITING_PAYMENT';
-                } else if (['PAID', 'GENERATED'].includes(status)) {
+                } else if (['PAID'].includes(status)) {
+                    status = 'PAID';
+                } else if (['GENERATED'].includes(status)) {
                     status = 'GENERATED';
                 } else if (['DELIVERED'].includes(status)) {
                     status = 'DELIVERED';
+                } else if (['LOST', 'FAILED', 'CANCELLED'].includes(status)) {
+                    status = 'LOST';
                 } else if (!cols.includes(status)) {
                     status = 'NEW';
                 }
 
                 counts[status] = (counts[status] || 0) + 1;
 
+                let payTag = '';
+                if (['WAITING_PAYMENT'].includes(status)) {
+                    payTag = '<div class="pay-badge pending">⏳ Счёт выставлен (не оплачен)</div>';
+                } else if (['PAID', 'GENERATED', 'DELIVERED'].includes(status)) {
+                    payTag = '<div class="pay-badge paid">✅ 9 900 руб. Оплачено</div>';
+                }
+
                 const cardHtml = `
-                    <div class="lead-card" onclick="openChat(${l.telegram_id}, '${(l.full_name || 'Клиент').replace(/'/g, "")}')">
+                    <div class="lead-card" onclick="openChat(${l.telegram_id}, '${(l.full_name || 'Клиент').replace(/'/g, "")}', '${l.bot_variant}', '${l.status}')">
                         <div class="lead-name">
                             <span>${l.full_name || 'Клиент'}</span>
                             <span style="font-size: 11px; color: var(--text-muted);">@${l.username || 'id'+l.telegram_id}</span>
@@ -220,6 +276,7 @@
                         </div>
                         ${l.brief_step > 0 && l.brief_step < 7 ? `<div class="incomplete-warning">⚠️ Бросил бриф на шаге ${l.brief_step}/7</div>` : ''}
                         ${l.brief_data && l.brief_data !== '{}' ? `<div style="font-size: 11px; color: var(--success); margin-top: 4px;">✓ Бриф заполнен</div>` : ''}
+                        ${payTag}
                         ${l.feedback ? `<div style="font-size: 11px; color: ${status === 'LOST' ? '#f87171' : 'var(--warning)'}; margin-top: 4px; font-weight: 500;">💬 ${l.feedback}</div>` : ''}
                     </div>
                 `;
@@ -234,22 +291,41 @@
             });
         }
 
-        async function openChat(telegramId, name) {
+        async function openChat(telegramId, name, variant, status) {
+            activeTelegramId = telegramId;
             document.getElementById('modalTitle').innerText = `Диалог с ${name}`;
+            document.getElementById('modalMeta').innerText = `Telegram ID: ${telegramId} | Продавец: ${variant || 'Variant A'}`;
+            document.getElementById('statusSelect').value = status || 'NEW';
+
+            const badge = document.getElementById('paymentStatusBadge');
+            if (['PAID', 'GENERATED', 'DELIVERED'].includes(status)) {
+                badge.innerHTML = '<span style="color: var(--success);">✅ Оплата: Подтверждена (9 900 руб)</span>';
+            } else if (status === 'WAITING_PAYMENT') {
+                badge.innerHTML = '<span style="color: var(--warning);">⏳ Оплата: Ожидает поступления</span>';
+            } else {
+                badge.innerHTML = '<span style="color: var(--text-muted);">💳 Оплата: Не совершалась</span>';
+            }
+
             const modal = document.getElementById('chatModal');
             const chatBox = document.getElementById('chatBox');
             chatBox.innerHTML = '<div style="color: var(--text-muted); text-align: center;">Загрузка диалога...</div>';
             modal.style.display = 'flex';
 
+            await loadChatMessages();
+        }
+
+        async function loadChatMessages() {
+            if (!activeTelegramId) return;
+            const chatBox = document.getElementById('chatBox');
             try {
-                const res = await fetch(`/api/chat_history?telegram_id=${telegramId}`);
+                const res = await fetch(`/api/chat_history?telegram_id=${activeTelegramId}`);
                 const messages = await res.json();
                 if (messages.length === 0) {
                     chatBox.innerHTML = '<div style="color: var(--text-muted); text-align: center;">Диалог пуст</div>';
                 } else {
                     chatBox.innerHTML = messages.map(m => `
                         <div class="chat-msg ${m.sender.toLowerCase()}">
-                            <div style="font-size: 11px; opacity: 0.7; margin-bottom: 2px;">${m.sender === 'USER' ? 'Клиент' : 'ИИ-Бот ('+(m.bot_variant || 'Ответ')+')'}</div>
+                            <div style="font-size: 10px; opacity: 0.7; margin-bottom: 2px;">${m.sender === 'USER' ? '👤 Клиент' : '🤖 ИИ-Бот ('+(m.bot_variant || 'Менеджер')+')'}</div>
                             <div>${formatChatText(m.text)}</div>
                         </div>
                     `).join('');
@@ -260,8 +336,68 @@
             }
         }
 
+        async function sendAdminMessageCRM() {
+            const input = document.getElementById('crmReplyInput');
+            const text = input.value.trim();
+            if (!text || !activeTelegramId) return;
+
+            try {
+                const res = await fetch('/api/send_admin_message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ telegram_id: activeTelegramId, text: text })
+                });
+                const result = await res.json();
+                if (result.status === 'ok') {
+                    input.value = '';
+                    await loadChatMessages();
+                    await loadCRM();
+                } else {
+                    alert("Ошибка отправки: " + (result.error || "Неизвестная ошибка"));
+                }
+            } catch (err) {
+                alert("Ошибка соединения с сервером");
+            }
+        }
+
+        async function verifyPaymentCRM() {
+            if (!activeTelegramId) return;
+            if (!confirm("Подтвердить прием оплаты 9 900 руб. от клиента и уведомить его в Telegram?")) return;
+
+            try {
+                const res = await fetch('/api/verify_payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ telegram_id: activeTelegramId })
+                });
+                const result = await res.json();
+                if (result.status === 'ok') {
+                    alert("✅ Оплата успешно подтверждена! Клиент уведомлен в Telegram.");
+                    await loadChatMessages();
+                    await loadCRM();
+                }
+            } catch (err) {
+                alert("Ошибка подтверждения оплаты");
+            }
+        }
+
+        async function changeStatusCRM(newStatus) {
+            if (!activeTelegramId) return;
+            try {
+                await fetch('/api/update_lead_status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ telegram_id: activeTelegramId, status: newStatus })
+                });
+                await loadCRM();
+            } catch (err) {
+                console.error("Error updating status:", err);
+            }
+        }
+
         function closeModal() {
             document.getElementById('chatModal').style.display = 'none';
+            activeTelegramId = null;
         }
 
         loadCRM();
