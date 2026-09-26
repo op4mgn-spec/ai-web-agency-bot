@@ -314,6 +314,23 @@ def get_setting(key: str, default: str = "") -> str:
         conn.close()
         return default
 
+def get_queue_lead_by_param(param: str):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    clean_param = param.lower().replace("lead_", "").strip()
+    if clean_param.isdigit():
+        cursor.execute("SELECT * FROM leads_queue WHERE id = ?", (int(clean_param),))
+        row = cursor.fetchone()
+        if row:
+            conn.close()
+            return dict(row)
+            
+    cursor.execute("SELECT * FROM leads_queue WHERE target_url LIKE ? OR company_name LIKE ?", (f"%{param}%", f"%{param}%"))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
 if __name__ == "__main__":
     init_db()
     print("Database updated and auto-migrated.")

@@ -152,6 +152,22 @@ def process_telegram_update(update_data):
             db.log_chat_message(chat_id, "BOT", msg, bot_variant)
             send_telegram_message(chat_id, msg)
 
+        elif data == "show_demo_niches":
+            crm_base = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
+            base = crm_base.rstrip('/')
+            msg = "🎨 **Примеры готовых сайтов по популярным нишам**\n\nВыберите вашу сферу бизнеса, чтобы открылся интерактивный демо-сайт:"
+            kbd = {"inline_keyboard": [
+                [{"text": "🚘 Автосервис & СТО", "url": f"{base}/generated_sites/demo_auto.html"}],
+                [{"text": "🧹 Клининг & Уборка", "url": f"{base}/generated_sites/demo_cleaning.html"}],
+                [{"text": "🦷 Стоматология & Медицина", "url": f"{base}/generated_sites/demo_dental.html"}],
+                [{"text": "🔨 Ремонт квартир", "url": f"{base}/generated_sites/demo_repair.html"}],
+                [{"text": "⚖️ Юридические услуги", "url": f"{base}/generated_sites/demo_legal.html"}],
+                [{"text": "💅 Салон красоты & СПА", "url": f"{base}/generated_sites/demo_beauty.html"}]
+            ]}
+            db.log_chat_message(chat_id, "BOT", msg, bot_variant)
+            send_telegram_message(chat_id, msg, reply_markup=kbd)
+            return
+
         elif data == "pay_order":
             db.update_lead_status(chat_id, "PAID")
             msg = "✅ **Оплата принята (9 900 руб.)!**\n\nВаш заказ передан основателю студии (@bers1q). После проверки брифа и утверждения верстки ваш сайт будет выслан вам на утверждение!"
@@ -287,24 +303,52 @@ def process_telegram_update(update_data):
             send_telegram_message(chat_id, msg, reply_markup=kbd)
             return
 
-        # Handle /start
-        if text == "/start":
+        # Handle /start with Deep Linking lead identification
+        if text.startswith("/start"):
             user_states[chat_id] = {"step": None, "brief": {}}
             crm_base = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
-            crm_url = f"{crm_base.rstrip('/')}/crm"
+            base = crm_base.rstrip('/')
+            crm_url = f"{base}/crm"
 
-            welcome = (
-                f"👋 Здравствуйте, {user.get('first_name')}!\n\n"
-                f"Я — ИИ-консультант **AI Web Studio**.\n"
-                f"Мы создаем продающие сайты под ключ за 24 часа.\n\n"
-                f"💬 Задайте мне любой вопрос в чат или нажмите кнопку ниже для заказа!"
-            )
-            
-            buttons = [
-                [{"text": "📝 Заполнить подробный бриф", "callback_data": "start_brief"}],
-                [{"text": "❓ Задать вопрос менеджеру", "callback_data": "ask_question"}],
-                [{"text": "📞 Контакты основателя", "callback_data": "contact_info"}]
-            ]
+            # Parse start payload (e.g. /start lead_1 or /start autoprofi)
+            parts = text.split(maxsplit=1)
+            target_lead = None
+            if len(parts) > 1:
+                param = parts[1].strip()
+                target_lead = db.get_queue_lead_by_param(param)
+
+            if target_lead:
+                company = target_lead.get("company_name", "Ваша Компания")
+                city = target_lead.get("city", "")
+                target_url = target_lead.get("target_url", "")
+                
+                welcome = (
+                    f"👋 Здравствуйте, представители компании **{company}**"
+                    f"{' (' + city + ')' if city else ''}!\n\n"
+                    f"🎯 Мы изучили ваш сайт (`{target_url}`) и подготовили специализированное предложение по созданию "
+                    f"высококонверсионного лендинга нового поколения под ключ за 24 часа.\n\n"
+                    f"💰 **Стоимость разработки под ключ**: 9 900 руб.\n"
+                    f"💬 Посмотрите готовые демо-макеты для вашей сферы или отправьте любой вопрос в чат!"
+                )
+                buttons = [
+                    [{"text": "🎨 Примеры сайтов по нишам (6 демо)", "callback_data": "show_demo_niches"}],
+                    [{"text": "📝 Заполнить подробный бриф", "callback_data": "start_brief"}],
+                    [{"text": "❓ Задать вопрос менеджеру", "callback_data": "ask_question"}],
+                    [{"text": "📞 Контакты основателя", "callback_data": "contact_info"}]
+                ]
+            else:
+                welcome = (
+                    f"👋 Здравствуйте, {user.get('first_name')}!\n\n"
+                    f"Я — ИИ-консультант **AI Web Studio**.\n"
+                    f"Мы создаем продающие сайты под ключ за 24 часа всего за 9 900 руб.\n\n"
+                    f"💬 Задайте мне любой вопрос в чат или посмотрите примеры наших работ!"
+                )
+                buttons = [
+                    [{"text": "🎨 Примеры сайтов по нишам (6 демо)", "callback_data": "show_demo_niches"}],
+                    [{"text": "📝 Заполнить подробный бриф", "callback_data": "start_brief"}],
+                    [{"text": "❓ Задать вопрос менеджеру", "callback_data": "ask_question"}],
+                    [{"text": "📞 Контакты основателя", "callback_data": "contact_info"}]
+                ]
 
             if is_admin:
                 welcome += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.**\n• `/crm` — открыть CRM-систему\n• `/setkey AIzaSy...` — установить Gemini API ключ"
