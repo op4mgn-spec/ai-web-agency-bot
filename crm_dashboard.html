@@ -120,6 +120,12 @@
             `).join('');
         }
 
+        function formatChatText(text) {
+            if (!text) return '';
+            let escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return escaped.replace(/\n/g, "<br>");
+        }
+
         function renderKanban(leads) {
             const cols = ['NEW', 'INCOMPLETE_BRIEF', 'WAITING_PAYMENT', 'GENERATED', 'DELIVERED'];
             cols.forEach(c => {
@@ -130,11 +136,22 @@
             const counts = {};
             leads.forEach(l => {
                 let status = l.status || 'NEW';
-                if (status === 'BRIEFING') status = 'INCOMPLETE_BRIEF';
+                if (['BRIEFING', 'INCOMPLETE_BRIEF', 'BRIEF_RECOVERY_SENT', 'INCOMPLETE_RECOVERED_NOTIFIED'].includes(status)) {
+                    status = 'INCOMPLETE_BRIEF';
+                } else if (['WAITING_PAYMENT'].includes(status)) {
+                    status = 'WAITING_PAYMENT';
+                } else if (['PAID', 'GENERATED'].includes(status)) {
+                    status = 'GENERATED';
+                } else if (['DELIVERED'].includes(status)) {
+                    status = 'DELIVERED';
+                } else if (!cols.includes(status)) {
+                    status = 'NEW';
+                }
+
                 counts[status] = (counts[status] || 0) + 1;
 
                 const cardHtml = `
-                    <div class="lead-card" onclick="openChat(${l.telegram_id}, '${l.full_name}')">
+                    <div class="lead-card" onclick="openChat(${l.telegram_id}, '${(l.full_name || 'Клиент').replace(/'/g, "")}')">
                         <div class="lead-name">
                             <span>${l.full_name || 'Клиент'}</span>
                             <span style="font-size: 11px; color: var(--text-muted);">@${l.username || 'id'+l.telegram_id}</span>
@@ -172,8 +189,8 @@
                 } else {
                     chatBox.innerHTML = messages.map(m => `
                         <div class="chat-msg ${m.sender.toLowerCase()}">
-                            <div style="font-size: 11px; opacity: 0.7; margin-bottom: 2px;">${m.sender === 'USER' ? 'Клиент' : 'ИИ-Бот ('+m.bot_variant+')'}</div>
-                            <div>${m.text}</div>
+                            <div style="font-size: 11px; opacity: 0.7; margin-bottom: 2px;">${m.sender === 'USER' ? 'Клиент' : 'ИИ-Бот ('+(m.bot_variant || 'Ответ')+')'}</div>
+                            <div>${formatChatText(m.text)}</div>
                         </div>
                     `).join('');
                     chatBox.scrollTop = chatBox.scrollHeight;

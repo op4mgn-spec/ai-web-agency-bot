@@ -39,7 +39,7 @@ PERSONA_PROMPTS = {
 }
 SYSTEM_SALES_PROMPT = PERSONA_PROMPTS["Variant A (Консультант)"]
 
-def send_telegram_message(chat_id, text, reply_markup=None, parse_mode="Markdown"):
+def send_telegram_message(chat_id, text, reply_markup=None, parse_mode="Markdown", bot_variant=""):
     payload = {"chat_id": chat_id, "text": text}
     if reply_markup:
         payload["reply_markup"] = reply_markup
@@ -47,6 +47,9 @@ def send_telegram_message(chat_id, text, reply_markup=None, parse_mode="Markdown
         payload["parse_mode"] = parse_mode
     try:
         r = requests.post(f"{API_URL}/sendMessage", json=payload, timeout=5)
+        # Automatically log every outbound bot message into agency.db
+        if text and str(chat_id).replace("-", "").isdigit():
+            db.log_chat_message(int(chat_id), "BOT", text, bot_variant)
         return r.json()
     except Exception as e:
         print(f"Error sending telegram message: {e}")
@@ -133,6 +136,9 @@ def process_telegram_update(update_data):
         
         lead = db.get_or_create_lead(chat_id, user.get("username", ""), user.get("first_name", ""))
         bot_variant = lead.get("bot_variant", "Variant A (Консультант)")
+
+        # Log button click interaction to database
+        db.log_chat_message(chat_id, "USER", f"🔘 [Нажата кнопка: {data}]", bot_variant)
 
         if data == "start_brief":
             user_states[chat_id] = {"step": 1, "brief": {}}
@@ -227,12 +233,26 @@ def process_telegram_update(update_data):
 
         return
 
-    # Handle Normal Messages
-    if "message" in update_data and "text" in update_data["message"]:
+    # Handle Normal & Media Messages
+    if "message" in update_data:
         msg = update_data["message"]
         user = msg["from"]
         chat_id = user["id"]
-        text = msg["text"].strip()
+        
+        text = msg.get("text", "").strip()
+        if not text:
+            if "voice" in msg:
+                text = "🎤 [Голосовое сообщение]"
+            elif "photo" in msg:
+                text = "📷 [Фотографическое изображение]"
+            elif "document" in msg:
+                text = "📄 [Вложенный файл]"
+            elif "sticker" in msg:
+                text = "😊 [Стикер]"
+            elif "caption" in msg:
+                text = f"📷 {msg['caption']}"
+            else:
+                text = "[Нетекстовое сообщение]"
 
         lead = db.get_or_create_lead(chat_id, user.get("username", ""), user.get("first_name", ""))
         bot_variant = lead.get("bot_variant", "Variant A (Консультант)")
