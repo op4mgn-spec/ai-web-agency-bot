@@ -5,7 +5,7 @@ import json
 import urllib.parse
 import db
 
-PORT = 8000
+PORT = int(os.getenv("PORT", 8000))
 DIRECTORY = os.path.dirname(__file__)
 
 class CRMHandler(http.server.SimpleHTTPRequestHandler):
@@ -17,8 +17,16 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
         path = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
 
+        # Healthcheck / Keep-Alive Ping
+        if path == "/ping" or path == "/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"OK")
+            return
+
         # Serve Web CRM Dashboard on homepage
-        if path == "/" or path == "/crm":
+        elif path == "/" or path == "/crm":
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -58,7 +66,7 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
 
 def run_server():
     with socketserver.TCPServer(("", PORT), CRMHandler) as httpd:
-        print(f"Web CRM & Landing Server running at http://localhost:{PORT}")
+        print(f"Web CRM & Health Server running at http://0.0.0.0:{PORT}")
         httpd.serve_forever()
 
 if __name__ == "__main__":

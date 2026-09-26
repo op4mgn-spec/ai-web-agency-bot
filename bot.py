@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import asyncio
+import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
@@ -312,8 +313,13 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
-    print("Telegram Sales Bot starting with Fail-Safe Gemini AI...")
-    app.run_polling()
+    print("Telegram Sales Bot starting resilient polling loop...")
+    while True:
+        try:
+            app.run_polling(drop_pending_updates=True)
+        except Exception as e:
+            logging.error(f"Polling loop encountered error: {e}. Retrying in 5 seconds...")
+            time.sleep(5)
 
 if __name__ == "__main__":
     main()
