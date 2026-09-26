@@ -42,10 +42,34 @@ PERSONA_PROMPTS = {
 """
 }
 
+async def safe_generate_ai_response(prompt: str) -> str:
+    """Generates text via Gemini API with automatic model fallback."""
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+        return ""
+        
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    
+    # Try models in order of availability
+    for model_name in ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
+            if response and response.text:
+                return response.text.strip()
+        except Exception as e:
+            logging.warning(f"Model {model_name} failed: {e}")
+            continue
+            
+    return ""
+
 async def reply_and_log(update: Update, text: str, user_id: int, bot_variant: str = "", reply_markup=None, parse_mode=None):
-    # Log Bot Response to CRM Chat History
-    db.log_chat_message(user_id, "BOT", text, bot_variant)
-    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+    try:
+        db.log_chat_message(user_id, "BOT", text, bot_variant)
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
+    except Exception as e:
+        logging.error(f"Error in reply_and_log: {e}")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -116,7 +140,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Admin Controls
     elif data.startswith("admin_generate_"):
         target_client_id = int(data.split("_")[2])
-        target_lead = db.get_lead_messages(target_client_id)
         lead_row = db.get_all_leads_crm()
         target = next((l for l in lead_row if l['telegram_id'] == target_client_id), None)
         
@@ -181,7 +204,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     step = context.user_data.get("brief_step")
     
-    # 7-Step Comprehensive Briefing Flow (Updates Incomplete Brief status at every step)
+    # 7-Step Comprehensive Briefing Flow
     if step == 1:
         context.user_data["brief"]["company_name"] = text
         context.user_data["brief_step"] = 2
@@ -247,28 +270,20 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await reply_and_log(update, summary, user.id, bot_variant, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
         return
 
-    # Advanced Conversational AI Dialog via Gemini (Using Persona System Prompt)
+    # Advanced Conversational AI Dialog via Gemini
     system_prompt = PERSONA_PROMPTS.get(bot_variant, PERSONA_PROMPTS["Variant A (Консультант)"])
+    full_prompt = f"{system_prompt}\n\nИстория вопроса клиента: '{text}'"
     
-    if GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here":
-        try:
-            client = genai.Client(api_key=GEMINI_API_KEY)
-            full_prompt = f"{system_prompt}\n\nИстория вопроса клиента: '{text}'"
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=full_prompt
-            )
-            ai_reply = response.text.strip()
-            await reply_and_log(update, ai_reply, user.id, bot_variant)
-            return
-        except Exception as e:
-            logging.error(f"Gemini sales chat error: {e}")
+    ai_reply = await safe_generate_ai_response(full_prompt)
+    if ai_reply:
+        await reply_and_log(update, ai_reply, user.id, bot_variant)
+        return
 
     # Fallback response if AI is processing or offline
     fallback_reply = (
         f"Спасибо за вопрос! Как эксперт по сайтам ({bot_variant}), скажу: "
         f"мы создаем профессиональные лендинги под ключ за 24 часа за 9 900 руб. "
-        f"Хотите рассчитать проект и посмотреть бриф? Заполните его по кнопке ниже!"
+        f"Хотите рассчитать проект и заполнить бриф? Нажмите кнопку ниже!"
     )
     kbd = [[InlineKeyboardButton("📝 Заполнить бриф на сайт", callback_data="start_brief")]]
     await reply_and_log(update, fallback_reply, user.id, bot_variant, reply_markup=InlineKeyboardMarkup(kbd))
@@ -297,7 +312,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
-    print("Telegram Sales Bot starting with Web CRM & A/B Engine...")
+    print("Telegram Sales Bot starting with Fail-Safe Gemini AI...")
     app.run_polling()
 
 if __name__ == "__main__":
