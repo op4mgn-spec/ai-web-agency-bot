@@ -23,7 +23,6 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "8740453272:AAG5MyW2cvsi
 ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 PROXY_URL = os.getenv("PROXY_URL")
-RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL") # Provided automatically by Render
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -293,15 +292,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kbd = [[InlineKeyboardButton("📝 Заполнить бриф на сайт", callback_data="start_brief")]]
     await reply_and_log(update, fallback_reply, user.id, bot_variant, reply_markup=InlineKeyboardMarkup(kbd))
 
-def main():
+async def async_main():
     if not TELEGRAM_BOT_TOKEN:
         print("Error: TELEGRAM_BOT_TOKEN is missing!")
         return
-
-    try:
-        asyncio.get_event_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
 
     request_kwargs = {
         "connect_timeout": 30.0,
@@ -317,30 +311,23 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
-    # Share app instance with server for Webhook handling
     server.telegram_app = app
-    
-    webhook_url = f"{RENDER_EXTERNAL_URL}/webhook" if RENDER_EXTERNAL_URL else None
 
-    if webhook_url:
-        print(f"Setting Telegram Webhook to {webhook_url}...")
-        try:
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(app.bot.set_webhook(url=webhook_url, drop_pending_updates=True))
-            print(f"✅ Webhook successfully active at {webhook_url}")
-            # Keep main thread alive while web server processes webhooks
-            while True:
-                time.sleep(3600)
-        except Exception as e:
-            print(f"Webhook set error: {e}, falling back to polling...")
+    await app.initialize()
+    await app.start()
+    await app.bot.delete_webhook(drop_pending_updates=True)
+    await app.updater.start_polling(drop_pending_updates=True)
+    print("✅ Telegram Sales Bot polling started cleanly with zero webhook conflicts!")
 
-    print(f"Telegram Sales Bot starting polling loop...")
+    # Keep async loop running indefinitely
     while True:
-        try:
-            app.run_polling(drop_pending_updates=True)
-        except Exception as e:
-            logging.error(f"Polling loop encountered error: {e}. Retrying in 5 seconds...")
-            time.sleep(5)
+        await asyncio.sleep(3600)
+
+def main():
+    try:
+        asyncio.run(async_main())
+    except Exception as e:
+        print(f"Bot main loop error: {e}")
 
 if __name__ == "__main__":
     main()
