@@ -529,12 +529,27 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
 
             # Send Telegram notification directly to Owner via Bot!
             if status == "COMPLETED":
+                base_url = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
+                base = base_url.rstrip('/')
+                
+                links_section = ""
+                if files_changed:
+                    links = []
+                    for f in files_changed.split(","):
+                        f = f.strip()
+                        if f.startswith("generated_sites/"):
+                            fname = f.replace("generated_sites/", "")
+                            links.append(f"• 🌐 [{f}]({base}/generated_sites/{fname})")
+                    if links:
+                        links_section = "\n\n📱 **Ссылки для открытия с телефона**:\n" + "\n".join(links)
+
                 tg_msg = (
                     f"🚀 **Автономная задача #{task_id} ВЫПОЛНЕНА и ЗАДЕПЛОЕНА!**\n\n"
                     f"📝 **Результат**: {summary}\n"
                     f"📄 **Файлы**: `{files_changed}`\n"
-                    f"📌 **Коммит**: `{commit_hash}`\n\n"
-                    f"🌐 Сервер перезапущен с изменениями: https://ai-web-agency-bot.onrender.com"
+                    f"📌 **Коммит**: `{commit_hash}`"
+                    f"{links_section}\n\n"
+                    f"🌐 Сервер перезапущен с изменениями: {base}"
                 )
             else:
                 tg_msg = f"⚠️ **Ошибка при выполнении задачи #{task_id}**:\n`{error_msg}`"

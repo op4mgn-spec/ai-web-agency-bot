@@ -462,6 +462,13 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
         else:
             is_admin = (user_id_str == str(saved_admin))
 
+        # Check if Owner is submitting edits for a specific hypothesis
+        awaiting_edit_id = user_states.get(chat_id, {}).pop("awaiting_edit_init_id", None)
+        if awaiting_edit_id:
+            import executive_ai_engine
+            executive_ai_engine.apply_owner_edits_to_hypothesis(awaiting_edit_id, text, chat_id)
+            return
+
         # Admin Command to set Gemini API key directly from Telegram!
         if text.startswith("/setkey"):
             parts = text.split(maxsplit=1)
@@ -547,8 +554,8 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
             send_telegram_message(chat_id, msg, reply_markup=kbd)
             return
 
-        # AI Board of Directors Hypothesis Generator Command (/hypothesis)
-        if text.startswith("/hypothesis") or text.startswith("/owner_ai") or "гипотез" in text.lower():
+        # AI Board of Directors Hypothesis Generator Command (/hypothesis or Button)
+        if text.startswith("/hypothesis") or text.startswith("/owner_ai") or text.lower() in ["💡 гипотезы (совет директоров)", "гипотезы", "новые гипотезы", "запустить брейншторм"]:
             ADMIN_TELEGRAM_ID = user_id_str
             db.set_setting("ADMIN_TELEGRAM_ID", user_id_str)
             is_admin = True
@@ -880,26 +887,24 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
             return
 
         if is_admin:
-            # Executive Assistant & Antigravity Bridge Mode for Owner
-            exec_prompt = (
-                f"Ты — исполнительный ИИ-ассистент Собственника и мост в систему Antigravity в компании AI Web Studio.\n"
-                f"Собственник написал тебе: '{text}'.\n\n"
-                f"Ответь четко, профессионально, по существу как надежный советник. "
-                f"Если Собственник дает задачу или распоряжение, подтверди готовность к исполнению."
+            # Register as Autonomous Dev Task / System Instruction!
+            task_id = db.create_autonomous_task(chat_id, text)
+            reply = (
+                f"⚡️ **Задача принята в автономный конвейер разработки Antigravity (#{task_id})!**\n\n"
+                f"📝 **Текст задания**: «{text}»\n"
+                f"⚙️ **Статус**: `PENDING (Взят в работу)`\n\n"
+                f"🤖 Локальный агент Antigravity приступает к:\n"
+                f"1. Анализу файлов проекта и подготовке изменений\n"
+                f"2. Автоматическому написанию и проверке кода\n"
+                f"3. Git-коммиту и пушу в репозиторий\n"
+                f"4. Автоматическому перезапуску на Render\n\n"
+                f"Как только задача будет выполнена, вы получите отчет с прямой ссылкой для телефона! 🚀"
             )
-            ai_ans, err_details = safe_generate_ai(exec_prompt, chat_id)
-            if not ai_ans:
-                ai_ans = (
-                    f"👑 **Принято, Евгений!**\n\n"
-                    f"Ваш запрос зафиксирован ИИ-ассистентом Собственника.\n\n"
-                    f"Используйте кнопки меню внизу для генерации гипотез, просмотра задач на утверждение или перехода в Дашборд."
-                )
             kbd = {"inline_keyboard": [
-                [{"text": "💡 Сгенерировать гипотезу", "callback_data": "start_hypothesis_gen"}],
-                [{"text": "👑 Открыть Дашборд P&L", "url": "https://ai-web-agency-bot.onrender.com/owner"}],
-                [{"text": "📊 CRM Воронка Лидов", "url": "https://ai-web-agency-bot.onrender.com/crm"}]
+                [{"text": "📋 Список Dev-задач", "callback_data": "show_dev_tasks"}],
+                [{"text": "👑 Дашборд P&L", "url": "https://ai-web-agency-bot.onrender.com/owner"}]
             ]}
-            send_telegram_message(chat_id, ai_ans, reply_markup=kbd)
+            send_telegram_message(chat_id, reply, reply_markup=kbd)
             return
 
         # General Conversational Q&A via Gemini REST API using specific A/B Persona for Clients

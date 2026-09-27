@@ -30,6 +30,11 @@ def generate_and_submit_new_hypothesis(department: str = "SALES"):
     dash_data = db.get_owner_dashboard_data()
     summary = dash_data["executive_summary"]
 
+    # Deduplication: fetch all existing initiative titles
+    existing_inits = db.get_department_initiatives()
+    existing_titles = [i.get("title", "").strip() for i in existing_inits if i.get("title")]
+    existing_str = "\n".join([f"- {t}" for t in existing_titles[-15:]]) if existing_titles else "Пока нет"
+
     prompt = (
         f"{role_info['prompt_context']}\n\n"
         f"Текущие метрики компании AI Web Studio:\n"
@@ -37,40 +42,43 @@ def generate_and_submit_new_hypothesis(department: str = "SALES"):
         f"• Конверсия в оплату: {summary['conversion_rate']}%\n"
         f"• Выручка: {summary['revenue']} руб.\n"
         f"• Чистая прибыль: {summary['net_profit']} руб. (Маржа: {summary['margin_percent']}%)\n\n"
-        f"Сгенерируй ОДНУ конкретную, безопасную и высокодоходную гипотезу/задачу для своего отдела, которая поможет компании максимально быстро принести деньги.\n"
+        f"ВАЖНО! Ранее в компании УЖЕ были сгенерированы следующие гипотезы:\n"
+        f"{existing_str}\n\n"
+        f"СТРОЖАЙШЕЕ ТРЕБОВАНИЕ ДЕДУПЛИКАЦИИ: Сгенерируй СОВЕРШЕННО НОВУЮ, уникальную гипотезу для своего отдела, которая НЕ повторяет ни одну из вышеперечисленных!\n"
         f"Ответь СТРОГО в формате JSON без разметки markdown:\n"
         f'{{\n'
-        f'  "title": "Короткий заголовок гипотезы",\n'
+        f'  "title": "Короткий уникальный заголовок гипотезы",\n'
         f'  "description": "Подробное описание действий",\n'
         f'  "kpi": "Конкретный целевой показатель KPI",\n'
-        f'  "hypothesis_impact": "Финансовый или конверсионный эффект (например, +15% к чистой прибыли)",\n'
+        f'  "hypothesis_impact": "Финансовый или конверсионный эффект (например, +20% к чистой прибыли)",\n'
         f'  "priority": "HIGH"\n'
         f'}}\n'
     )
 
     ai_text, err = webhook_engine.safe_generate_ai(prompt)
+    data = None
     
     if ai_text:
         try:
-            # Clean JSON codeblock wrappers if present
             clean_json = ai_text.replace("```json", "").replace("```", "").strip()
             data = json.loads(clean_json)
         except Exception:
-            data = {
-                "title": f"Оптимизация процессов воронки {department}",
-                "description": f"Автоматизированный комплекс мер по повышению ROI и конверсии {role_title}",
-                "kpi": "Рост ключевых метрик на +20%",
-                "hypothesis_impact": "+15 000 руб. дополнительной прибыли",
-                "priority": "HIGH"
-            }
-    else:
+            pass
+
+    if not data:
+        # Unique fallback titles
+        count = len(existing_titles) + 1
         data = {
-            "title": f"Повышение эффективности {role_title}",
-            "description": "Внедрение нового алгоритма автоматизации откликов",
-            "kpi": "Сокращение времени обработки на 50%",
-            "hypothesis_impact": "Рост скорости заключения сделок",
+            "title": f"Стратегическая инициатива #{count} для {role_title}",
+            "description": f"Внедрение таргетированных мер по оптимизации воронки {role_title}",
+            "kpi": "Рост конверсии на +25%",
+            "hypothesis_impact": "+20 000 руб. дополнительной прибыли",
             "priority": "HIGH"
         }
+
+    # Ensure title is unique
+    if data.get("title") in existing_titles:
+        data["title"] = f"{data['title']} (Фаза {len(existing_titles)+1})"
 
     # Save hypothesis to database with status PENDING_APPROVAL
     init_id = db.add_department_initiative_with_approval(
@@ -84,7 +92,7 @@ def generate_and_submit_new_hypothesis(department: str = "SALES"):
         approval_status="PENDING_APPROVAL"
     )
 
-    # Notify Owner in Telegram with interactive buttons
+    # Notify Owner in Telegram with interactive buttons (Approve, Reject, Edit)
     send_approval_request_to_owner(init_id, department, role_title, data)
     return init_id
 
@@ -95,7 +103,7 @@ def send_approval_request_to_owner(init_id: int, department: str, role_title: st
         return
 
     msg = (
-        f"💡 **НОВАЯ ГИПОТЕЗА НА УТВЕРЖДЕНИЕ СОБСТВЕННИКУ**\n\n"
+        f"💡 **НОВАЯ ГИПОТЕЗА НА УТВЕРЖДЕНИЕ СОБСТВЕННИКУ (#{init_id})**\n\n"
         f"👔 **Должность**: {role_title}\n"
         f"📌 **Задача**: {data.get('title')}\n"
         f"📝 **Суть**: {data.get('description')}\n"
@@ -109,6 +117,9 @@ def send_approval_request_to_owner(init_id: int, department: str, role_title: st
             [
                 {"text": "✅ Утвердить задачу", "callback_data": f"approve_init_{init_id}"},
                 {"text": "❌ Отклонить (Вето)", "callback_data": f"reject_init_{init_id}"}
+            ],
+            [
+                {"text": "✏️ Внести правки / Уточнить", "callback_data": f"edit_init_{init_id}"}
             ]
         ]
     }
@@ -133,13 +144,14 @@ def resend_pending_approvals_to_owner(chat_id: int):
     webhook_engine.send_telegram_message(chat_id, f"📋 **Найдено задач на утверждение**: {len(pending)} шт. Отправляю интерактивные карточки...")
 
     for init in reversed(pending): # Send oldest to newest
+        feedback_note = f"\n📝 **Учтенные правки**: «_{init.get('executed_results')}_»" if init.get('executed_results') else ""
         msg = (
             f"💡 **ГИПОТЕЗА НА УТВЕРЖДЕНИЕ СОБСТВЕННИКУ (#{init['id']})**\n\n"
             f"👔 **Должность**: {init.get('role_title')}\n"
             f"📌 **Задача**: {init.get('title')}\n"
             f"📝 **Суть**: {init.get('description')}\n"
             f"🎯 **Целевой KPI**: `{init.get('kpi')}`\n"
-            f"💰 **Прогнозируемый эффект**: `{init.get('hypothesis_impact') or 'Рост прибыли'}`\n\n"
+            f"💰 **Прогнозируемый эффект**: `{init.get('hypothesis_impact') or 'Рост прибыли'}`{feedback_note}\n\n"
             f"Утверждаете запуск данной гипотезы в работу?"
         )
         kbd = {
@@ -147,6 +159,9 @@ def resend_pending_approvals_to_owner(chat_id: int):
                 [
                     {"text": "✅ Утвердить задачу", "callback_data": f"approve_init_{init['id']}"},
                     {"text": "❌ Отклонить (Вето)", "callback_data": f"reject_init_{init['id']}"}
+                ],
+                [
+                    {"text": "✏️ Внести правки / Уточнить", "callback_data": f"edit_init_{init['id']}"}
                 ]
             ]
         }
@@ -156,7 +171,7 @@ def resend_pending_approvals_to_owner(chat_id: int):
 
 def handle_owner_approval_callback(callback_data: str, chat_id: int):
     parts = callback_data.split("_")
-    action = parts[0] # approve or reject
+    action = parts[0] # approve, reject, or edit
     init_id = int(parts[2])
 
     initiative = db.get_initiative_by_id(init_id)
@@ -197,3 +212,102 @@ def handle_owner_approval_callback(callback_data: str, chat_id: int):
         webhook_engine.send_telegram_message(chat_id, msg)
         generate_and_submit_new_hypothesis(dept)
 
+    elif action == "edit":
+        webhook_engine.user_states[chat_id] = {"awaiting_edit_init_id": init_id}
+        msg = (
+            f"✏️ **Корректировка гипотезы #{init_id} ({role_title})**\n\n"
+            f"📌 **Текущая задача**: «{initiative['title']}»\n"
+            f"📝 **Текущая суть**: {initiative.get('description')}\n\n"
+            f"Напишите прямо сюда в чат ваши правки, уточнения или ограничения (например: *'Снизь бюджет до 5 000 руб'*, *'Сделай только для автосервисов'* или *'Уточни механику'*):\n\n"
+            f"🤖 {role_title} мгновенно переработает гипотезу с учетом ваших слов и пришлет обновленную карточку!"
+        )
+        webhook_engine.send_telegram_message(chat_id, msg)
+
+def apply_owner_edits_to_hypothesis(init_id: int, feedback_text: str, chat_id: int):
+    initiative = db.get_initiative_by_id(init_id)
+    if not initiative:
+        webhook_engine.send_telegram_message(chat_id, f"⚠️ Гипотеза #{init_id} не найдена.")
+        return
+
+    role_title = initiative.get("role_title", "ИИ-Директор")
+    old_title = initiative.get("title", "")
+    old_desc = initiative.get("description", "")
+    old_kpi = initiative.get("kpi", "")
+    old_impact = initiative.get("hypothesis_impact", "")
+
+    webhook_engine.send_telegram_message(chat_id, f"⚙️ **{role_title}** перерабатывает гипотезу #{init_id} с учетом вашей правки: «_{feedback_text}_»...")
+
+    refine_prompt = (
+        f"Ты — {role_title} в компании AI Web Studio.\n"
+        f"Ты предложил гипотезу: '{old_title}'. Суть: '{old_desc}'. KPI: '{old_kpi}'.\n\n"
+        f"Собственник компании внес следующие обязательные правки и уточнения: '{feedback_text}'.\n\n"
+        f"Переработай гипотезу строго с учетом правок Собственника. "
+        f"Ответь СТРОГО в формате JSON без разметки markdown:\n"
+        f'{{\n'
+        f'  "title": "Уточненный заголовок гипотезы",\n'
+        f'  "description": "Переработанное описание строго по замечаниям Собственника",\n'
+        f'  "kpi": "Скорректированный целевой показатель KPI",\n'
+        f'  "hypothesis_impact": "Скорректированный прогнозируемый эффект"\n'
+        f'}}\n'
+    )
+
+    ai_text, _ = webhook_engine.safe_generate_ai(refine_prompt)
+    new_data = None
+    if ai_text:
+        try:
+            clean_json = ai_text.replace("```json", "").replace("```", "").strip()
+            new_data = json.loads(clean_json)
+        except Exception:
+            pass
+
+    if not new_data:
+        new_data = {
+            "title": f"{old_title} [Скорректировано]",
+            "description": f"{old_desc}\n\n[Уточнено по правкам Собственника: {feedback_text}]",
+            "kpi": old_kpi,
+            "hypothesis_impact": old_impact
+        }
+
+    # Update in DB
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE department_initiatives
+        SET title = ?, description = ?, kpi = ?, hypothesis_impact = ?, executed_results = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (
+        new_data.get("title", old_title),
+        new_data.get("description", old_desc),
+        new_data.get("kpi", old_kpi),
+        new_data.get("hypothesis_impact", old_impact),
+        f"Правка Собственника: {feedback_text}",
+        init_id
+    ))
+    conn.commit()
+    conn.close()
+
+    # Send updated card back to Owner with review buttons
+    msg = (
+        f"💡 **ОБНОВЛЕННАЯ ГИПОТЕЗА С УЧЕТОМ ВАШИХ ПРАВОК (#{init_id})**\n\n"
+        f"👔 **Должность**: {role_title}\n"
+        f"📌 **Задача**: {new_data.get('title')}\n"
+        f"📝 **Суть**: {new_data.get('description')}\n"
+        f"🎯 **Целевой KPI**: `{new_data.get('kpi')}`\n"
+        f"💰 **Прогнозируемый эффект**: `{new_data.get('hypothesis_impact')}`\n\n"
+        f"✏️ **Ваша правка учтена**: «_{feedback_text}_»\n\n"
+        f"Утверждаете обновленный вариант задачи?"
+    )
+
+    kbd = {
+        "inline_keyboard": [
+            [
+                {"text": "✅ Утвердить задачу", "callback_data": f"approve_init_{init_id}"},
+                {"text": "❌ Отклонить (Вето)", "callback_data": f"reject_init_{init_id}"}
+            ],
+            [
+                {"text": "✏️ Внести еще правки", "callback_data": f"edit_init_{init_id}"}
+            ]
+        ]
+    }
+
+    webhook_engine.send_telegram_message(chat_id, msg, reply_markup=kbd)

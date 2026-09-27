@@ -25,7 +25,7 @@ def log(msg):
 
 def run_cmd(cmd_list, cwd=None):
     try:
-        res = subprocess.run(cmd_list, cwd=cwd or os.path.dirname(__file__), capture_output=True, text=True, timeout=60)
+        res = subprocess.run(cmd_list, cwd=cwd or os.path.dirname(__file__), capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
         return res.returncode, res.stdout.strip(), res.stderr.strip()
     except Exception as e:
         return 1, "", str(e)
