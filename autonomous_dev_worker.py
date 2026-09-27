@@ -165,15 +165,40 @@ def execute_dev_task(task):
 Все решения должны быть 100% автономными программами, ботами, скриптами автоматизации и интеграциями с 0 затрат человеческого времени.
 
 В твоем распоряжении модули проекта:
-- `db.py`: содержит get_connection(), init_db(), get_department_initiatives(), add_department_initiative_with_approval(), deduplicate_initiatives(), delete_department_initiative(id), get_all_leads_crm(), get_owner_dashboard_data()
-- `executive_ai_engine.py`: содержит generate_and_submit_new_hypothesis(department), DEPARTMENT_ROLES, resend_pending_approvals_to_owner(chat_id)
+- `db.py`: содержит get_connection(), init_db(), get_department_initiatives(), add_department_initiative_with_approval(), deduplicate_initiatives(), delete_department_initiative(id), get_all_leads_crm(), get_owner_dashboard_data(), get_implemented_initiatives_journal()
+- `executive_ai_engine.py`: содержит generate_and_submit_new_hypothesis(department), DEPARTMENT_ROLES, resend_pending_approvals_to_owner(chat_id), format_initiatives_journal_for_telegram(chat_id)
 - `server.py`, `webhook_engine.py`, `owner_dashboard.html`, `crm_dashboard.html`
+
+ТОЧНАЯ СХЕМА ТАБЛИЦ SQLite (agency.db):
+1. `department_initiatives`:
+   - id INTEGER PRIMARY KEY
+   - department TEXT ('SALES', 'PRODUCT', 'FINANCE', 'FULFILLMENT')
+   - role_title TEXT (например 'РОП', 'CPO', 'CFO', 'COO')
+   - title TEXT (заголовок задачи)
+   - description TEXT (пошаговая суть)
+   - kpi TEXT (целевой KPI)
+   - priority TEXT ('HIGH' / 'MEDIUM')
+   - status TEXT ('IN_PROGRESS' / 'COMPLETED' / 'BACKLOG')
+   - approval_status TEXT ('APPROVED' / 'PENDING_APPROVAL' / 'REJECTED')
+   - hypothesis_impact TEXT (прогнозируемый эффект)
+   - executed_results TEXT (результат выполнения)
+   - created_at TIMESTAMP, updated_at TIMESTAMP
+   * ВНИМАНИЕ: колонки 'name' НЕТ, используй 'title' и 'role_title'!
+2. `leads`:
+   - telegram_id INTEGER PRIMARY KEY, username TEXT, full_name TEXT, status TEXT, brief_step INTEGER, brief_data TEXT, bot_variant TEXT, site_url TEXT, site_path TEXT, feedback TEXT
+3. `financial_ledger`:
+   - id INTEGER PRIMARY KEY, transaction_type TEXT ('INCOME' / 'EXPENSE'), category TEXT, amount REAL, description TEXT, created_at TIMESTAMP
+4. `autonomous_dev_tasks`:
+   - id INTEGER PRIMARY KEY, chat_id INTEGER, prompt TEXT, status TEXT, commit_hash TEXT, files_changed TEXT, summary TEXT, error_message TEXT, created_at TIMESTAMP, completed_at TIMESTAMP
+5. `settings`:
+   - key TEXT PRIMARY KEY, value TEXT
 
 Собственник поставил задачу в Telegram:
 «{prompt}»
 
-Напиши ОДИН чистый, надежный Python-скрипт, который выполнит требуемые изменения (выполнит нужные SQL-запросы в db, сгенерирует гипотезы, отредактирует нужные файлы проекта и т.д.).
+Напиши ОДИН чистый, надежный Python-скрипт, который выполнит требуемые изменения (выполнит нужные SQL-запросы в db, отредактирует нужные файлы проекта и т.д.).
 Скрипт должен вывести в stdout (через print) краткий человекопонятный отчет о том, ЧТО именно было сделано.
+НЕ глуши ошибки конструкциями try...except без перевызова (raise), скрипт должен падать при ошибке, чтобы система знала правду!
 
 ВАЖНО:
 - Верни ТОЛЬКО код скрипта внутри блока ```python ... ```.
@@ -190,11 +215,16 @@ def execute_dev_task(task):
                     os.remove(scratch_file)
                 except Exception:
                     pass
-                if res_code == 0:
-                    files_modified.append("agency.db")
-                    summary = f"{res_out.strip() if res_out else 'Изменения успешно применены ИИ-агентом.'}"
-                else:
-                    raise Exception(f"Ошибка выполнения сгенерированного кода: {res_err}")
+
+                out_lower = (res_out or "").lower()
+                has_error = any(kw in out_lower for kw in ["no such column", "operationalerror", "traceback", "exception:", "ошибка при работе с базой", "syntaxerror"])
+
+                if res_code != 0 or has_error:
+                    clean_err = res_err.strip() or res_out.strip() or "Неизвестная ошибка выполнения"
+                    raise Exception(f"Ошибка выполнения сгенерированного кода: {clean_err}")
+
+                files_modified.append("agency.db")
+                summary = f"{res_out.strip() if res_out else 'Изменения успешно применены ИИ-агентом.'}"
             else:
                 raise Exception(f"LLM не смог сгенерировать исполняемый план: {err or ai_resp[:100]}")
 

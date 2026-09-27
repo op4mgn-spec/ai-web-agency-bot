@@ -126,6 +126,16 @@
         </div>
     </div>
 
+    <div class="fin-section" style="margin-top: 25px;">
+        <div class="section-title" style="margin-bottom: 12px;">
+            <span>📅 Журнал применённых гипотез по дням (Хроника побед)</span>
+            <span style="font-size: 13px; font-weight: normal; color: var(--primary);" id="journalCountTag">0 реализовано</span>
+        </div>
+        <div id="journalContainer" style="display: flex; flex-direction: column; gap: 15px;">
+            <!-- Loaded via JS -->
+        </div>
+    </div>
+
     <div class="fin-section">
         <div class="section-title" style="margin-bottom: 5px;">
             <span>💰 Финансовый Отчет & P&L (Доходы и Расходы)</span>
@@ -155,6 +165,7 @@
                 renderExecutiveSummary(data.executive_summary);
                 renderInitiatives(data.initiatives);
                 renderFinances(data.finances);
+                renderImplementedJournal(data.implemented_journal || []);
             } catch (err) {
                 console.error("Error loading Owner Dashboard:", err);
             }
@@ -332,6 +343,54 @@
             } catch (err) {
                 alert('Ошибка соединения: ' + err);
             }
+        }
+
+        function renderImplementedJournal(journal) {
+            const container = document.getElementById('journalContainer');
+            const countTag = document.getElementById('journalCountTag');
+            if (!container) return;
+            
+            let total = 0;
+            journal.forEach(g => total += (g.count || 0));
+            if (countTag) countTag.textContent = `${total} реализовано`;
+
+            if (!journal || journal.length === 0) {
+                container.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: var(--text-muted); background: var(--bg); border-radius: 8px; border: 1px dashed var(--border);">
+                        Пока нет завершенных гипотез. Утвердите карточки в Telegram или переведите инициативы в статус «Завершено» — они сразу сгруппируются здесь по дням.
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            journal.forEach(group => {
+                html += `
+                    <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+                        <div style="font-weight: 700; font-size: 14px; color: var(--primary); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                            <span>🗓 Дата внедрения: <strong>${group.date}</strong></span>
+                            <span style="background: rgba(37,99,235,0.15); color: #60a5fa; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${group.count} шт</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                `;
+                (group.initiatives || []).forEach(init => {
+                    html += `
+                        <div style="background: var(--card-bg); border-left: 3px solid var(--success); padding: 10px 12px; border-radius: 4px; font-size: 13px;">
+                            <div style="font-weight: 600; color: #fff;">[${init.role_title}] ${init.title}</div>
+                            <div style="color: var(--text-muted); font-size: 12px; margin-top: 3px; line-height: 1.4;">${init.description}</div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 6px; font-size: 11px;">
+                                ${init.kpi ? `<span style="color: #38bdf8;">🎯 KPI: <b>${init.kpi}</b></span>` : ''}
+                                ${init.hypothesis_impact ? `<span style="color: var(--success);">💰 Эффект: <b>${init.hypothesis_impact}</b></span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
         }
 
         loadOwnerDashboard();

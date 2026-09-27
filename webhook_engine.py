@@ -232,8 +232,9 @@ def get_persistent_menu(is_admin=False):
         return {
             "keyboard": [
                 [{"text": "💡 Гипотезы (Совет Директоров)"}, {"text": "📋 Задачи на утверждение"}],
-                [{"text": "👑 Дашборд Собственника (P&L)"}, {"text": "📊 CRM Воронка Лидов"}],
-                [{"text": "💻 Dev Задачи (Автономный мост)"}, {"text": "🔑 Настройки API & Ключи"}]
+                [{"text": "📅 Журнал гипотез (по дням)"}, {"text": "👑 Дашборд Собственника (P&L)"}],
+                [{"text": "📊 CRM Воронка Лидов"}, {"text": "💻 Dev Задачи (Автономный мост)"}],
+                [{"text": "🔑 Настройки API & Ключи"}]
             ],
             "resize_keyboard": True,
             "is_persistent": True
@@ -592,6 +593,12 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
             count = executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
             if count == 0:
                 send_telegram_message(chat_id, "✅ **Все гипотезы уже рассмотрены!** Нет входящих задач на утверждение. Нажмите `💡 Гипотезы (Совет Директоров)` для нового брейншторма.")
+            return
+
+        # Owner Persistent Button: Implemented Initiatives Journal (by Days)
+        if text.lower() in ["📅 журнал гипотез (по дням)", "📅 журнал гипотез", "журнал гипотез", "журнал", "хроника", "хроника побед", "/journal", "/history", "журнал реализованных гипотез"]:
+            import executive_ai_engine
+            executive_ai_engine.format_initiatives_journal_for_telegram(chat_id)
             return
 
         # Owner Persistent Button: API Settings & Keys

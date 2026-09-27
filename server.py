@@ -235,6 +235,15 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "count": count}, ensure_ascii=False).encode("utf-8"))
             return
 
+        # API: Implemented Initiatives Journal (Chronicle by Day)
+        elif path == "/api/initiatives/journal":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            journal = db.get_implemented_initiatives_journal()
+            self.wfile.write(json.dumps(journal, ensure_ascii=False).encode("utf-8"))
+            return
+
 
 
         # API: Owner Executive Dashboard Combined Data

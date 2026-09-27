@@ -330,3 +330,45 @@ def apply_owner_edits_to_hypothesis(init_id: int, feedback_text: str, chat_id: i
     }
 
     webhook_engine.send_telegram_message(chat_id, msg, reply_markup=kbd)
+
+def format_initiatives_journal_for_telegram(chat_id: int):
+    journal = db.get_implemented_initiatives_journal()
+    if not journal:
+        msg = (
+            "📅 **Журнал реализованных гипотез пуст**\n\n"
+            "Пока ни одна гипотеза не переведена в статус `COMPLETED`.\n"
+            "Нажмите кнопку `📋 Задачи на утверждение`, чтобы утвердить гипотезы от ИИ-директоров, "
+            "и они сразу появятся в этом журнале с точной датой и полученным эффектом!"
+        )
+        webhook_engine.send_telegram_message(chat_id, msg)
+        return
+
+    total_inits = sum(d.get("count", 0) for d in journal)
+    lines = [
+        f"📅 **ЖУРНАЛ РЕАЛИЗОВАННЫХ ГИПОТЕЗ (ХРОНИКА ПОБЕД)**\n"
+        f"👑 Всего внедрено: **{total_inits} инициатив**\n"
+    ]
+
+    for day_group in journal[:7]: # Show recent days
+        day_date = day_group.get("date")
+        inits = day_group.get("initiatives", [])
+        lines.append(f"\n🗓 **Дата: {day_date}** ({len(inits)} гипотез):")
+        for init in inits:
+            role = init.get("role_title", "ИИ-Директор")
+            title = init.get("title", "Инициатива")
+            kpi = init.get("kpi", "")
+            impact = init.get("hypothesis_impact", "")
+            lines.append(f"  • **[{role}]** {title}")
+            if kpi:
+                lines.append(f"    🎯 KPI: `{kpi}`")
+            if impact:
+                lines.append(f"    💰 Эффект: `{impact}`")
+
+    msg_text = "\n".join(lines)
+    kbd = {
+        "inline_keyboard": [
+            [{"text": "👑 Открыть Дашборд с журналом", "url": "https://ai-web-agency-bot.onrender.com/owner"}],
+            [{"text": "📋 Задачи на утверждение", "callback_data": "show_approvals"}]
+        ]
+    }
+    webhook_engine.send_telegram_message(chat_id, msg_text, reply_markup=kbd)

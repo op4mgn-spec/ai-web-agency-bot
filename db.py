@@ -509,6 +509,38 @@ def update_initiative_status(initiative_id: int, new_status: str):
     conn.commit()
     conn.close()
 
+def get_implemented_initiatives_journal():
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, department, role_title, title, description, kpi, hypothesis_impact, executed_results, 
+               strftime('%Y-%m-%d', updated_at) as date_key, updated_at
+        FROM department_initiatives
+        WHERE status = 'COMPLETED' OR approval_status = 'APPROVED'
+        ORDER BY updated_at DESC, id DESC
+    ''')
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+
+    grouped = {}
+    for r in rows:
+        dk = r.get("date_key")
+        if not dk or dk == "None":
+            # fallback to created_at or today
+            dk = datetime.now().strftime("%Y-%m-%d")
+        if dk not in grouped:
+            grouped[dk] = []
+        grouped[dk].append(r)
+
+    result = []
+    for date_key, inits in grouped.items():
+        result.append({
+            "date": date_key,
+            "count": len(inits),
+            "initiatives": inits
+        })
+    return result
 
 def add_financial_transaction(transaction_type: str, category: str, amount: float, description: str):
     init_db()
@@ -564,6 +596,7 @@ def get_owner_dashboard_data():
         "initiatives": initiatives,
         "finances": finances,
         "ab_stats": ab_stats,
+        "implemented_journal": get_implemented_initiatives_journal(),
         "executive_summary": {
             "total_leads": total_leads,
             "paid_leads": paid_leads,
