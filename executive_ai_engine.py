@@ -125,7 +125,10 @@ def resend_pending_approvals_to_owner(chat_id: int):
     pending = [i for i in initiatives if i.get("approval_status") == "PENDING_APPROVAL"]
     
     if not pending:
-        return 0
+        for dept in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
+            generate_and_submit_new_hypothesis(dept)
+        initiatives = db.get_department_initiatives()
+        pending = [i for i in initiatives if i.get("approval_status") == "PENDING_APPROVAL"]
 
     webhook_engine.send_telegram_message(chat_id, f"📋 **Найдено задач на утверждение**: {len(pending)} шт. Отправляю интерактивные карточки...")
 

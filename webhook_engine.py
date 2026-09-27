@@ -95,10 +95,18 @@ def send_telegram_message(chat_id, text, reply_markup=None, parse_mode="Markdown
         payload["parse_mode"] = parse_mode
     try:
         r = requests.post(f"{API_URL}/sendMessage", json=payload, timeout=5)
-        # Automatically log every outbound bot message into agency.db
+        res = r.json()
+        if not res.get("ok"):
+            print(f"⚠️ Telegram API warning ({res.get('error_code')}): {res.get('description')}")
+            # Automatic fallback: if Markdown parse fails, send plain text immediately
+            if res.get("error_code") == 400 and "parse" in res.get("description", "").lower():
+                payload.pop("parse_mode", None)
+                r_fallback = requests.post(f"{API_URL}/sendMessage", json=payload, timeout=5)
+                res = r_fallback.json()
+
         if text and str(chat_id).replace("-", "").isdigit():
             db.log_chat_message(int(chat_id), "BOT", text, bot_variant)
-        return r.json()
+        return res
     except Exception as e:
         print(f"Error sending telegram message: {e}")
         return None
