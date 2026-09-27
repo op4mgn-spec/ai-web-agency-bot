@@ -27,7 +27,10 @@ def log(msg):
 
 def run_cmd(cmd_list, cwd=None):
     try:
-        res = subprocess.run(cmd_list, cwd=cwd or os.path.dirname(__file__), capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+        res = subprocess.run(cmd_list, cwd=cwd or os.path.dirname(__file__), capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60, env=env)
         return res.returncode, res.stdout.strip(), res.stderr.strip()
     except Exception as e:
         return 1, "", str(e)
@@ -211,8 +214,9 @@ def execute_dev_task(task):
             if ai_resp and "```python" in ai_resp:
                 code_block = ai_resp.split("```python")[1].split("```")[0].strip()
                 scratch_file = os.path.join(repo_dir, f"_auto_exec_{task_id}.py")
+                utf8_prefix = "import sys\nif hasattr(sys.stdout, 'reconfigure'):\n    sys.stdout.reconfigure(encoding='utf-8')\nif hasattr(sys.stderr, 'reconfigure'):\n    sys.stderr.reconfigure(encoding='utf-8')\n\n"
                 with open(scratch_file, "w", encoding="utf-8") as f:
-                    f.write(code_block)
+                    f.write(utf8_prefix + code_block)
                 res_code, res_out, res_err = run_cmd([sys.executable, scratch_file], cwd=repo_dir)
                 try:
                     os.remove(scratch_file)
@@ -227,7 +231,7 @@ def execute_dev_task(task):
                     raise Exception(f"Ошибка выполнения сгенерированного кода: {clean_err}")
 
                 files_modified.append("agency.db")
-                summary = f"{res_out.strip() if res_out else 'Изменения успешно применены ИИ-агентом.'}"
+                summary = f"{res_out.strip() if res_out else 'Изменения успешно применены ИИ-агентом.'}".replace('\ufffd', '')
             else:
                 raise Exception(f"LLM не смог сгенерировать исполняемый план: {err or ai_resp[:100]}")
 
