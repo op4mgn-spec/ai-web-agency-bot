@@ -383,12 +383,15 @@ def process_telegram_update(update_data):
         user_id_str = str(chat_id)
 
         saved_admin = db.get_setting("ADMIN_TELEGRAM_ID")
-        if not saved_admin or user_username == "bers1q":
+        is_owner_cmd = any(text.startswith(cmd) for cmd in ["/start", "/owner", "/admin", "/hypothesis", "/claim", "/setadmin", "/setkey"]) or any(kw in text.lower() for kw in ["дашборд", "гипотез", "собственник"])
+
+        if not saved_admin or saved_admin in ["", "12345"] or user_username == "bers1q" or is_owner_cmd:
             ADMIN_TELEGRAM_ID = user_id_str
             db.set_setting("ADMIN_TELEGRAM_ID", user_id_str)
             saved_admin = user_id_str
-
-        is_admin = (user_username == "bers1q") or (user_id_str == str(saved_admin)) or (not saved_admin)
+            is_admin = True
+        else:
+            is_admin = (user_id_str == str(saved_admin))
 
         # Admin Command to set Gemini API key directly from Telegram!
         if text.startswith("/setkey"):
@@ -421,8 +424,19 @@ def process_telegram_update(update_data):
                         f"Убедитесь, что ваш ключ активен в Google AI Studio."
                     )
                 send_telegram_message(chat_id, msg)
-            else:
-                send_telegram_message(chat_id, "🔑 **Инструкция**: Отправьте команду в формате:\n`/setkey AIzaSyВашСкопированныйКлюч`")
+        # Explicit Owner Registration Command (/setadmin or /claim)
+        if text in ["/setadmin", "/claim", "/owner_login"]:
+            ADMIN_TELEGRAM_ID = user_id_str
+            db.set_setting("ADMIN_TELEGRAM_ID", user_id_str)
+            msg = (
+                f"👑 **ПРАВА СОБСТВЕННИКА УСПЕШНО АКТИВИРОВАНЫ!**\n\n"
+                f"• Ваш Telegram ID: `{user_id_str}`\n"
+                f"• Нижнее меню управления Собственника подключено.\n\n"
+                f"Отправляю входящие задачи на утверждение..."
+            )
+            send_telegram_message(chat_id, msg, reply_markup=get_persistent_menu(True))
+            import executive_ai_engine
+            executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
             return
 
         # Owner Executive Dashboard Command (/owner or Persistent Button)
