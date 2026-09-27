@@ -42,15 +42,15 @@ def generate_and_submit_new_hypothesis(department: str = "SALES"):
         f"• Конверсия в оплату: {summary['conversion_rate']}%\n"
         f"• Выручка: {summary['revenue']} руб.\n"
         f"• Чистая прибыль: {summary['net_profit']} руб. (Маржа: {summary['margin_percent']}%)\n\n"
-        f"ВАЖНО! Ранее в компании УЖЕ были сгенерированы следующие гипотезы:\n"
+        f"СТРОЖАЙШЕЕ ПРАВИЛО СОБСТВЕННИКА: Никаких абстрактных фраз! Прописывать МАКСИМАЛЬНУЮ КОНКРЕТИКУ: что именно внедрить (инструмент, интеграция, скрипт, механика), пошаговый план из 3 пунктов и осязаемый результат.\n\n"
+        f"Ранее сгенерированные темы:\n"
         f"{existing_str}\n\n"
-        f"СТРОЖАЙШЕЕ ТРЕБОВАНИЕ ДЕДУПЛИКАЦИИ: Сгенерируй СОВЕРШЕННО НОВУЮ, уникальную гипотезу для своего отдела, которая НЕ повторяет ни одну из вышеперечисленных!\n"
         f"Ответь СТРОГО в формате JSON без разметки markdown:\n"
         f'{{\n'
-        f'  "title": "Короткий уникальный заголовок гипотезы",\n'
-        f'  "description": "Подробное описание действий",\n'
-        f'  "kpi": "Конкретный целевой показатель KPI",\n'
-        f'  "hypothesis_impact": "Финансовый или конверсионный эффект (например, +20% к чистой прибыли)",\n'
+        f'  "title": "Емкий конкретный заголовок инициативы",\n'
+        f'  "description": "1. [Конкретный инструмент/скрипт] 2. [Механика внедрения] 3. [Пошаговый регламент работы]",\n'
+        f'  "kpi": "Точный измеримый KPI с цифрами",\n'
+        f'  "hypothesis_impact": "Финансовый или конверсионный эффект (например, +25 000 руб/мес чистой прибыли)",\n'
         f'  "priority": "HIGH"\n'
         f'}}\n'
     )
@@ -125,7 +125,10 @@ def send_approval_request_to_owner(init_id: int, department: str, role_title: st
     }
 
     webhook_engine.send_telegram_message(int(admin_id), msg, reply_markup=kbd)
-    print(f"📩 Sent Telegram approval request for initiative #{init_id} ({role_title}) to Admin ID {admin_id}")
+    try:
+        print(f"[+] Sent Telegram approval request for initiative #{init_id} ({role_title}) to Admin ID {admin_id}")
+    except Exception:
+        pass
 
 def resend_pending_approvals_to_owner(chat_id: int):
     # Save chat_id as ADMIN_TELEGRAM_ID
