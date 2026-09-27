@@ -244,6 +244,18 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(journal, ensure_ascii=False).encode("utf-8"))
             return
 
+        # API: Send Implemented Initiatives Journal to Owner in Telegram
+        elif path.startswith("/api/send_journal"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            import executive_ai_engine
+            query_params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            target_chat = query_params.get("chat_id", ["246189250"])[0]
+            executive_ai_engine.format_initiatives_journal_for_telegram(int(target_chat))
+            self.wfile.write(json.dumps({"status": "ok", "chat_id": target_chat}, ensure_ascii=False).encode("utf-8"))
+            return
+
 
 
         # API: Owner Executive Dashboard Combined Data
