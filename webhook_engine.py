@@ -361,6 +361,7 @@ def process_telegram_update(update_data):
         user_id_str = str(chat_id)
         if user_username == "bers1q":
             ADMIN_TELEGRAM_ID = user_id_str
+            db.set_setting("ADMIN_TELEGRAM_ID", user_id_str)
 
         is_admin = (user_username == "bers1q") or (user_id_str == str(ADMIN_TELEGRAM_ID))
 
@@ -554,6 +555,11 @@ def process_telegram_update(update_data):
             kbd = {"inline_keyboard": buttons}
             db.log_chat_message(chat_id, "BOT", welcome, bot_variant)
             send_telegram_message(chat_id, welcome, reply_markup=kbd)
+
+            if is_admin:
+                import executive_ai_engine
+                executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
+
             return
 
         # Handle 7-Step Brief

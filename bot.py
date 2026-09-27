@@ -87,6 +87,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global ADMIN_TELEGRAM_ID
     if user.username and user.username.lower() == "bers1q":
         ADMIN_TELEGRAM_ID = str(user.id)
+        db.set_setting("ADMIN_TELEGRAM_ID", str(user.id))
         try:
             set_key(ENV_FILE, "ADMIN_TELEGRAM_ID", str(user.id))
         except Exception:
@@ -111,6 +112,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await reply_and_log(update, welcome_text, user.id, bot_variant, reply_markup=reply_markup, parse_mode="Markdown")
+
+    if is_admin:
+        import executive_ai_engine
+        executive_ai_engine.resend_pending_approvals_to_owner(user.id)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query

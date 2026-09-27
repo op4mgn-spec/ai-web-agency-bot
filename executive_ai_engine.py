@@ -116,6 +116,41 @@ def send_approval_request_to_owner(init_id: int, department: str, role_title: st
     webhook_engine.send_telegram_message(int(admin_id), msg, reply_markup=kbd)
     print(f"📩 Sent Telegram approval request for initiative #{init_id} ({role_title}) to Admin ID {admin_id}")
 
+def resend_pending_approvals_to_owner(chat_id: int):
+    # Save chat_id as ADMIN_TELEGRAM_ID
+    db.set_setting("ADMIN_TELEGRAM_ID", str(chat_id))
+    os.environ["ADMIN_TELEGRAM_ID"] = str(chat_id)
+    
+    initiatives = db.get_department_initiatives()
+    pending = [i for i in initiatives if i.get("approval_status") == "PENDING_APPROVAL"]
+    
+    if not pending:
+        return 0
+
+    webhook_engine.send_telegram_message(chat_id, f"📋 **Найдено задач на утверждение**: {len(pending)} шт. Отправляю интерактивные карточки...")
+
+    for init in reversed(pending): # Send oldest to newest
+        msg = (
+            f"💡 **ГИПОТЕЗА НА УТВЕРЖДЕНИЕ СОБСТВЕННИКУ (#{init['id']})**\n\n"
+            f"👔 **Должность**: {init.get('role_title')}\n"
+            f"📌 **Задача**: {init.get('title')}\n"
+            f"📝 **Суть**: {init.get('description')}\n"
+            f"🎯 **Целевой KPI**: `{init.get('kpi')}`\n"
+            f"💰 **Прогнозируемый эффект**: `{init.get('hypothesis_impact') or 'Рост прибыли'}`\n\n"
+            f"Утверждаете запуск данной гипотезы в работу?"
+        )
+        kbd = {
+            "inline_keyboard": [
+                [
+                    {"text": "✅ Утвердить задачу", "callback_data": f"approve_init_{init['id']}"},
+                    {"text": "❌ Отклонить (Вето)", "callback_data": f"reject_init_{init['id']}"}
+                ]
+            ]
+        }
+        webhook_engine.send_telegram_message(chat_id, msg, reply_markup=kbd)
+
+    return len(pending)
+
 def handle_owner_approval_callback(callback_data: str, chat_id: int):
     parts = callback_data.split("_")
     action = parts[0] # approve or reject
