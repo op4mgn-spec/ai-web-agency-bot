@@ -31,7 +31,17 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 r_me = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe", timeout=5).json()
                 r_wh = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getWebhookInfo", timeout=5).json()
-                data = {"getMe": r_me, "getWebhookInfo": r_wh, "RENDER_EXTERNAL_URL": os.getenv("RENDER_EXTERNAL_URL")}
+                admin_id = db.get_setting("ADMIN_TELEGRAM_ID")
+                all_leads = db.get_all_leads_crm()
+                recent_leads = [{"id": l["telegram_id"], "name": l.get("full_name"), "user": l.get("username"), "status": l.get("status")} for l in all_leads[:5]]
+                data = {
+                    "getMe": r_me,
+                    "getWebhookInfo": r_wh,
+                    "admin_id": admin_id,
+                    "recent_leads": recent_leads,
+                    "total_leads": len(all_leads),
+                    "RENDER_EXTERNAL_URL": os.getenv("RENDER_EXTERNAL_URL")
+                }
                 self.wfile.write(json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8"))
             except Exception as e:
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
