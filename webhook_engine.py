@@ -6,7 +6,9 @@ import requests
 import db
 from generator import generate_website_html
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "8740453272:AAG5MyW2cvsiPaRT3i3V4feM7bRKoGhyFbU"
+OWNER_BOT_TOKEN = os.getenv("OWNER_BOT_TOKEN") or "8690113233:AAGLX7LTETCuxgfc79T_av0VKEikBBDTJtY"
+CLIENT_BOT_TOKEN = os.getenv("CLIENT_BOT_TOKEN") or "8740453272:AAG5MyW2cvsiPaRT3i3V4feM7bRKoGhyFbU"
+TELEGRAM_BOT_TOKEN = OWNER_BOT_TOKEN
 ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -87,25 +89,34 @@ PERSONA_PROMPTS = {
 }
 SYSTEM_SALES_PROMPT = PERSONA_PROMPTS["Variant A (Консультант)"]
 
-def send_telegram_message(chat_id, text, reply_markup=None, parse_mode="Markdown", bot_variant=""):
+def send_telegram_message(chat_id, text, reply_markup=None, parse_mode="Markdown", bot_variant="", bot_token=None):
+    token = bot_token or OWNER_BOT_TOKEN
     payload = {"chat_id": chat_id, "text": text}
     if reply_markup:
         payload["reply_markup"] = reply_markup
     if parse_mode:
         payload["parse_mode"] = parse_mode
     try:
-        r = requests.post(f"{API_URL}/sendMessage", json=payload, timeout=7)
+        r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json=payload, timeout=7)
         res = r.json()
         if not res.get("ok"):
             print(f"⚠️ Telegram API warning ({res.get('error_code')}): {res.get('description')}")
             # Automatic fallback: if first attempt fails with 400, retry as plain text without Markdown
             if res.get("error_code") == 400 and payload.get("parse_mode"):
                 payload.pop("parse_mode", None)
-                r_fallback = requests.post(f"{API_URL}/sendMessage", json=payload, timeout=7)
+                r_fallback = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json=payload, timeout=7)
                 res = r_fallback.json()
 
+            # Automatic fallback: if chat not found on this token, retry on alternate token!
+            if not res.get("ok") and res.get("error_code") == 400 and "chat not found" in res.get("description", "").lower():
+                alt_token = CLIENT_BOT_TOKEN if token == OWNER_BOT_TOKEN else OWNER_BOT_TOKEN
+                r_alt = requests.post(f"https://api.telegram.org/bot{alt_token}/sendMessage", json=payload, timeout=7)
+                alt_res = r_alt.json()
+                if alt_res.get("ok"):
+                    res = alt_res
+
         try:
-            db.set_setting("LAST_TELEGRAM_SEND_RESULT", json.dumps({"to_chat": chat_id, "res": res, "text_preview": text[:100]}, ensure_ascii=False))
+            db.set_setting("LAST_TELEGRAM_SEND_RESULT", json.dumps({"to_chat": chat_id, "token_prefix": token[:10], "res": res, "text_preview": text[:100]}, ensure_ascii=False))
         except Exception:
             pass
 
@@ -228,7 +239,7 @@ def get_persistent_menu(is_admin=False):
             "is_persistent": True
         }
 
-def process_telegram_update(update_data):
+def process_telegram_update(update_data, bot_mode="auto"):
     global GEMINI_API_KEY, ADMIN_TELEGRAM_ID
     try:
         db.init_db()
@@ -236,7 +247,7 @@ def process_telegram_update(update_data):
             db.set_setting("LAST_RECEIVED_UPDATE", json.dumps(update_data, ensure_ascii=False))
         except Exception:
             pass
-        _do_process_telegram_update(update_data)
+        _do_process_telegram_update(update_data, bot_mode=bot_mode)
     except Exception as e:
         import traceback
         err_str = f"Error processing telegram update: {e}\n{traceback.format_exc()}"
@@ -246,7 +257,7 @@ def process_telegram_update(update_data):
         except Exception:
             pass
 
-def _do_process_telegram_update(update_data):
+def _do_process_telegram_update(update_data, bot_mode="auto"):
     global GEMINI_API_KEY, ADMIN_TELEGRAM_ID
 
     # Handle Callback Queries (Button Clicks)
@@ -266,6 +277,14 @@ def _do_process_telegram_update(update_data):
         if data.startswith("approve_init_") or data.startswith("reject_init_"):
             import executive_ai_engine
             executive_ai_engine.handle_owner_approval_callback(data, chat_id)
+            return
+
+        if data == "start_hypothesis_gen":
+            import executive_ai_engine
+            send_telegram_message(chat_id, "🧠 **ИИ-Совет Директоров**: Запуск генерации гипотез для всех 4 отделов (РОП, CPO, CFO, COO)...")
+            for d in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
+                executive_ai_engine.generate_and_submit_new_hypothesis(d)
+            executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
             return
 
         if data == "start_brief":
@@ -421,7 +440,7 @@ def _do_process_telegram_update(update_data):
         is_owner_identity = (user_username == "bers1q") or ("евгений" in user_first_name) or ("evgen" in user_first_name)
         is_owner_cmd = any(text.startswith(cmd) for cmd in ["/start", "/owner", "/admin", "/hypothesis", "/claim", "/setadmin", "/setkey"]) or any(kw in text.lower() for kw in ["дашборд", "гипотез", "собственник"])
 
-        if not saved_admin or saved_admin in ["", "12345"] or is_owner_identity or is_owner_cmd:
+        if not saved_admin or saved_admin in ["", "12345"] or is_owner_identity or is_owner_cmd or (bot_mode == "owner"):
             ADMIN_TELEGRAM_ID = user_id_str
             db.set_setting("ADMIN_TELEGRAM_ID", user_id_str)
             saved_admin = user_id_str
@@ -800,7 +819,30 @@ def _do_process_telegram_update(update_data):
             send_telegram_message(chat_id, summary, reply_markup=kbd)
             return
 
-        # General Conversational Q&A via Gemini REST API using specific A/B Persona
+        if is_admin:
+            # Executive Assistant & Antigravity Bridge Mode for Owner
+            exec_prompt = (
+                f"Ты — исполнительный ИИ-ассистент Собственника и мост в систему Antigravity в компании AI Web Studio.\n"
+                f"Собственник написал тебе: '{text}'.\n\n"
+                f"Ответь четко, профессионально, по существу как надежный советник. "
+                f"Если Собственник дает задачу или распоряжение, подтверди готовность к исполнению."
+            )
+            ai_ans, err_details = safe_generate_ai(exec_prompt, chat_id)
+            if not ai_ans:
+                ai_ans = (
+                    f"👑 **Принято, Евгений!**\n\n"
+                    f"Ваш запрос зафиксирован ИИ-ассистентом Собственника.\n\n"
+                    f"Используйте кнопки меню внизу для генерации гипотез, просмотра задач на утверждение или перехода в Дашборд."
+                )
+            kbd = {"inline_keyboard": [
+                [{"text": "💡 Сгенерировать гипотезу", "callback_data": "start_hypothesis_gen"}],
+                [{"text": "👑 Открыть Дашборд P&L", "url": "https://ai-web-agency-bot.onrender.com/owner"}],
+                [{"text": "📊 CRM Воронка Лидов", "url": "https://ai-web-agency-bot.onrender.com/crm"}]
+            ]}
+            send_telegram_message(chat_id, ai_ans, reply_markup=kbd)
+            return
+
+        # General Conversational Q&A via Gemini REST API using specific A/B Persona for Clients
         persona_prompt = PERSONA_PROMPTS.get(bot_variant, PERSONA_PROMPTS["Variant A (Консультант)"])
         prompt = f"{persona_prompt}\n\nВопрос клиента: '{text}'"
         ai_ans, err_details = safe_generate_ai(prompt, chat_id)
