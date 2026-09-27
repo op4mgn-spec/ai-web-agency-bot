@@ -287,6 +287,52 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "id": init_id, "new_status": new_status}).encode('utf-8'))
             return
 
+        # API: Approve / Reject Initiative directly from Owner Web Dashboard
+        elif path == "/api/approve_initiative":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            init_id = body.get('id')
+            action = body.get('action') # approve or reject
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+
+            if not init_id or not action:
+                self.wfile.write(json.dumps({"error": "Missing args"}).encode('utf-8'))
+                return
+
+            import executive_ai_engine
+            admin_id = os.getenv("ADMIN_TELEGRAM_ID") or db.get_setting("ADMIN_TELEGRAM_ID")
+            chat_id = int(admin_id) if admin_id and str(admin_id).isdigit() else 0
+            executive_ai_engine.handle_owner_approval_callback(f"{action}_init_{init_id}", chat_id)
+            
+            self.wfile.write(json.dumps({"status": "ok", "id": init_id, "action": action}).encode('utf-8'))
+            return
+
+        # API: Trigger Hypothesis Generation from Owner Web Dashboard
+        elif path == "/api/generate_hypotheses":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length).decode('utf-8')) if content_length > 0 else {}
+            department = body.get('department', 'ALL')
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+
+            import executive_ai_engine
+            generated_ids = []
+            if department in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
+                init_id = executive_ai_engine.generate_and_submit_new_hypothesis(department)
+                generated_ids.append(init_id)
+            else:
+                for d in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
+                    init_id = executive_ai_engine.generate_and_submit_new_hypothesis(d)
+                    generated_ids.append(init_id)
+
+            self.wfile.write(json.dumps({"status": "ok", "generated_ids": generated_ids}).encode('utf-8'))
+            return
+
         self.send_response(404)
         self.end_headers()
 

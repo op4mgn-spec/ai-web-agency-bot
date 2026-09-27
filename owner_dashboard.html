@@ -62,13 +62,22 @@
         .table th { color: var(--text-muted); font-weight: 600; font-size: 12px; }
         .type-INCOME { color: var(--success); font-weight: bold; }
         .type-EXPENSE { color: var(--danger); font-weight: bold; }
+        .approval-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; margin-left: 6px; }
+        .approval-PENDING_APPROVAL { background: rgba(245, 158, 11, 0.25); color: #fbbf24; border: 1px solid #f59e0b; }
+        .approval-APPROVED { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .approval-REJECTED { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .btn-app { background: #10b981; color: white; border: none; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-app:hover { background: #059669; }
+        .btn-rej { background: #ef4444; color: white; border: none; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-rej:hover { background: #dc2626; }
     </style>
 </head>
 <body>
     <header>
         <div class="logo">👑 AI Web Agency | Дашборд Собственника</div>
         <div class="nav-links">
-            <a href="/crm" class="btn-nav primary">📊 Воронка Лидов (CRM)</a>
+            <button onclick="generateHypothesesWeb()" class="btn-nav primary">💡 Сгенерировать гипотезы (Совет)</button>
+            <a href="/crm" class="btn-nav">📊 Воронка Лидов (CRM)</a>
             <button onclick="loadOwnerDashboard()" class="btn-nav">🔄 Обновить данные</button>
         </div>
     </header>
@@ -187,11 +196,33 @@
                 const col = document.getElementById(`dept-${item.department}`);
                 if (!col) return;
 
+                const approvalStatus = item.approval_status || 'APPROVED';
+                let approvalBadge = '';
+                let approvalActions = '';
+
+                if (approvalStatus === 'PENDING_APPROVAL') {
+                    approvalBadge = `<span class="approval-tag approval-PENDING_APPROVAL">⏳ На утверждении</span>`;
+                    approvalActions = `
+                        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); display: flex; gap: 8px;">
+                            <button onclick="approveInitiativeWeb(${item.id}, 'approve')" class="btn-app">✅ Утвердить</button>
+                            <button onclick="approveInitiativeWeb(${item.id}, 'reject')" class="btn-rej">❌ Вето</button>
+                        </div>
+                    `;
+                } else if (approvalStatus === 'APPROVED') {
+                    approvalBadge = `<span class="approval-tag approval-APPROVED">✅ Утверждено</span>`;
+                } else if (approvalStatus === 'REJECTED') {
+                    approvalBadge = `<span class="approval-tag approval-REJECTED">❌ Вето</span>`;
+                }
+
                 const cardHtml = `
                     <div class="init-card">
-                        <div class="init-title">${item.title}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+                            <div class="init-title" style="margin-bottom: 0;">${item.title}</div>
+                            ${approvalBadge}
+                        </div>
                         <div class="init-desc">${item.description}</div>
                         <div class="init-kpi">🎯 KPI: ${item.kpi}</div>
+                        ${item.hypothesis_impact ? `<div style="font-size:11px; color:var(--purple); margin-bottom:8px;">📈 Прогноз: ${item.hypothesis_impact}</div>` : ''}
                         <div class="init-footer">
                             <span class="prio-tag prio-${item.priority}">${item.priority === 'HIGH' ? 'ВЫСОКИЙ' : 'СРЕДНИЙ'}</span>
                             <select class="status-select" onchange="updateInitiativeStatus(${item.id}, this.value)">
@@ -200,6 +231,7 @@
                                 <option value="BACKLOG" ${item.status === 'BACKLOG' ? 'selected' : ''}>📋 Бэклог</option>
                             </select>
                         </div>
+                        ${approvalActions}
                     </div>
                 `;
                 col.innerHTML += cardHtml;
@@ -230,6 +262,40 @@
                 await loadOwnerDashboard();
             } catch (err) {
                 console.error("Error updating initiative status:", err);
+            }
+        }
+
+        async function approveInitiativeWeb(id, action) {
+            try {
+                await fetch('/api/approve_initiative', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, action: action })
+                });
+                await loadOwnerDashboard();
+            } catch (err) {
+                console.error("Error submitting approval decision:", err);
+            }
+        }
+
+        async function generateHypothesesWeb() {
+            try {
+                const btn = event.target;
+                const oldText = btn.innerText;
+                btn.innerText = "🧠 Генерирую гипотезы...";
+                btn.disabled = true;
+                
+                await fetch('/api/generate_hypotheses', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ department: 'ALL' })
+                });
+
+                btn.innerText = oldText;
+                btn.disabled = false;
+                await loadOwnerDashboard();
+            } catch (err) {
+                console.error("Error triggering hypothesis generation:", err);
             }
         }
 

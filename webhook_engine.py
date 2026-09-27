@@ -207,6 +207,11 @@ def process_telegram_update(update_data):
         # Log button click interaction to database
         db.log_chat_message(chat_id, "USER", f"🔘 [Нажата кнопка: {data}]", bot_variant)
 
+        if data.startswith("approve_init_") or data.startswith("reject_init_"):
+            import executive_ai_engine
+            executive_ai_engine.handle_owner_approval_callback(data, chat_id)
+            return
+
         if data == "start_brief":
             user_states[chat_id] = {"step": 1, "brief": {}}
             db.update_brief_step(chat_id, 1)
@@ -416,6 +421,26 @@ def process_telegram_update(update_data):
             send_telegram_message(chat_id, msg, reply_markup=kbd)
             return
 
+        # AI Board of Directors Hypothesis Generator Command (/hypothesis)
+        if text.startswith("/hypothesis") or text.startswith("/owner_ai"):
+            if not is_admin:
+                msg = "⛔️ **Доступ ограничен**. Генерация гипотез ИИ-Совета Директоров доступна только Собственнику."
+                send_telegram_message(chat_id, msg)
+                return
+
+            parts = text.split(maxsplit=1)
+            dept_arg = parts[1].strip().upper() if len(parts) > 1 else ""
+            import executive_ai_engine
+            
+            if dept_arg in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
+                send_telegram_message(chat_id, f"🧠 **ИИ-Совет Директоров**: Генерация гипотезы для отдела `{dept_arg}`...")
+                executive_ai_engine.generate_and_submit_new_hypothesis(dept_arg)
+            else:
+                send_telegram_message(chat_id, "🧠 **ИИ-Совет Директоров**: Запуск авто-генерации гипотез для ВСЕХ 4 отделов (РОП, CPO, CFO, COO)...")
+                for d in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
+                    executive_ai_engine.generate_and_submit_new_hypothesis(d)
+            return
+
         # Item 7: Dynamic Price Calculator Command
         if text in ["/calculator", "/calc", "калькулятор"]:
             msg = (
@@ -521,8 +546,10 @@ def process_telegram_update(update_data):
                 ]
 
             if is_admin:
-                welcome += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.**\n• `/crm` — открыть CRM-систему\n• `/setkey AIzaSy...` — установить Gemini API ключ"
-                buttons.insert(0, [{"text": "📊 Панель управления CRM", "web_app": {"url": crm_url}}])
+                owner_url = f"{base}/owner"
+                welcome += "\n\n👑 **Режим СОБСТВЕННИКА активен.**\n• `/hypothesis` — сгенерировать гипотезы ИИ-Совета Директоров\n• `/crm` — открыть CRM-систему лидов\n• `/setkey AIzaSy...` — установить Gemini API ключ"
+                buttons.insert(0, [{"text": "👑 Дашборд Собственника", "web_app": {"url": owner_url}}])
+                buttons.insert(1, [{"text": "📊 Панель управления CRM", "web_app": {"url": crm_url}}])
 
             kbd = {"inline_keyboard": buttons}
             db.log_chat_message(chat_id, "BOT", welcome, bot_variant)

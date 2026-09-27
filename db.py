@@ -115,10 +115,23 @@ def init_db():
             kpi TEXT,
             priority TEXT DEFAULT 'MEDIUM',
             status TEXT DEFAULT 'IN_PROGRESS',
+            approval_status TEXT DEFAULT 'APPROVED',
+            hypothesis_impact TEXT DEFAULT '',
+            executed_results TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    for col, col_type in [
+        ('approval_status', "TEXT DEFAULT 'APPROVED'"),
+        ('hypothesis_impact', "TEXT DEFAULT ''"),
+        ('executed_results', "TEXT DEFAULT ''")
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE department_initiatives ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass
 
     # Financial Ledger Table (CFO Revenues & Expenses)
     cursor.execute('''
@@ -391,11 +404,46 @@ def add_department_initiative(department: str, role_title: str, title: str, desc
     cursor = conn.cursor()
     now_str = datetime.now().isoformat()
     cursor.execute("""
-        INSERT INTO department_initiatives (department, role_title, title, description, kpi, priority, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO department_initiatives (department, role_title, title, description, kpi, priority, status, approval_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'APPROVED', ?, ?)
     """, (department, role_title, title, description, kpi, priority, status, now_str, now_str))
     conn.commit()
     conn.close()
+
+def add_department_initiative_with_approval(department: str, role_title: str, title: str, description: str, kpi: str, hypothesis_impact: str = "", priority: str = "HIGH", approval_status: str = "PENDING_APPROVAL"):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    now_str = datetime.now().isoformat()
+    cursor.execute("""
+        INSERT INTO department_initiatives (department, role_title, title, description, kpi, priority, status, approval_status, hypothesis_impact, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'BACKLOG', ?, ?, ?, ?)
+    """, (department, role_title, title, description, kpi, priority, approval_status, hypothesis_impact, now_str, now_str))
+    init_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return init_id
+
+def update_initiative_approval(initiative_id: int, approval_status: str):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    now_str = datetime.now().isoformat()
+    new_status = "IN_PROGRESS" if approval_status == "APPROVED" else ("REJECTED" if approval_status == "REJECTED" else "BACKLOG")
+    cursor.execute("""
+        UPDATE department_initiatives SET approval_status = ?, status = ?, updated_at = ? WHERE id = ?
+    """, (approval_status, new_status, now_str, initiative_id))
+    conn.commit()
+    conn.close()
+
+def get_initiative_by_id(initiative_id: int):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM department_initiatives WHERE id = ?", (initiative_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 def update_initiative_status(initiative_id: int, new_status: str):
     init_db()

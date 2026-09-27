@@ -136,6 +136,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.log_chat_message(user.id, "BOT", msg, bot_variant)
         await query.message.reply_text(msg)
 
+    elif data.startswith("approve_init_") or data.startswith("reject_init_"):
+        import executive_ai_engine
+        executive_ai_engine.handle_owner_approval_callback(data, user.id)
+        return
+
     elif data == "contact_info":
         msg = "📞 **Связь со службой поддержки AI Web Studio**\n\nЗадайте любой вопрос прямо сюда в чат!"
         db.log_chat_message(user.id, "BOT", msg, bot_variant)
@@ -292,6 +297,25 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kbd = [[InlineKeyboardButton("📝 Заполнить бриф на сайт", callback_data="start_brief")]]
     await reply_and_log(update, fallback_reply, user.id, bot_variant, reply_markup=InlineKeyboardMarkup(kbd))
 
+async def hypothesis_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    is_admin = (str(user.id) == str(ADMIN_TELEGRAM_ID)) or (user.username and user.username.lower() == "bers1q")
+    if not is_admin:
+        await update.message.reply_text("⛔️ **Доступ ограничен**. Генерация гипотез ИИ-Совета Директоров доступна только Собственнику.")
+        return
+
+    import executive_ai_engine
+    args = context.args
+    dept_arg = args[0].upper() if args else ""
+    
+    if dept_arg in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
+        await update.message.reply_text(f"🧠 **ИИ-Совет Директоров**: Генерация гипотезы для отдела `{dept_arg}`...")
+        executive_ai_engine.generate_and_submit_new_hypothesis(dept_arg)
+    else:
+        await update.message.reply_text("🧠 **ИИ-Совет Директоров**: Запуск авто-генерации гипотез для ВСЕХ 4 отделов (РОП, CPO, CFO, COO)...")
+        for d in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
+            executive_ai_engine.generate_and_submit_new_hypothesis(d)
+
 async def async_main():
     if not TELEGRAM_BOT_TOKEN:
         print("Error: TELEGRAM_BOT_TOKEN is missing!")
@@ -308,6 +332,7 @@ async def async_main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).request(req).build()
     
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("hypothesis", hypothesis_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
