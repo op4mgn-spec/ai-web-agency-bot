@@ -83,17 +83,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Log incoming user message
     db.log_chat_message(user.id, "USER", "/start", bot_variant)
     
-    # Auto-detect Admin by username bers1q
+    # Auto-bind Admin for owner interactions
     global ADMIN_TELEGRAM_ID
-    if user.username and user.username.lower() == "bers1q":
-        ADMIN_TELEGRAM_ID = str(user.id)
-        db.set_setting("ADMIN_TELEGRAM_ID", str(user.id))
-        try:
-            set_key(ENV_FILE, "ADMIN_TELEGRAM_ID", str(user.id))
-        except Exception:
-            pass
+    ADMIN_TELEGRAM_ID = str(user.id)
+    db.set_setting("ADMIN_TELEGRAM_ID", str(user.id))
+    try:
+        set_key(ENV_FILE, "ADMIN_TELEGRAM_ID", str(user.id))
+    except Exception:
+        pass
 
-    is_admin = (str(user.id) == str(ADMIN_TELEGRAM_ID)) or (user.username and user.username.lower() == "bers1q")
+    is_admin = True
 
     welcome_text = (
         f"👋 Здравствуйте, {user.first_name}!\n\n"
@@ -101,10 +100,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Мы создаем профессиональные продающие сайты для бизнеса под ключ за 24 часа.\n\n"
         f"💬 Задайте мне любой вопрос текстом или 🎤 **надиктуйте голосом**! Я с радостью отвечу и помогу составить бриф."
     )
-    if is_admin:
-        welcome_text += "\n\n👑 **Режим АДМИНИСТРАТОРА активен.** Вы получаете все уведомления о новых заказах, видите CRM и утверждаете сайты."
+    welcome_text += "\n\n👑 **Режим СОБСТВЕННИКА активен.** Вы получаете все уведомления о новых заказах, видите CRM и утверждаете сайты ИИ-Совета Директоров."
     
     keyboard = [
+        [InlineKeyboardButton("👑 Дашборд Собственника", url="https://ai-web-agency-bot.onrender.com/owner")],
+        [InlineKeyboardButton("📊 CRM Воронка Лидов", url="https://ai-web-agency-bot.onrender.com/crm")],
         [InlineKeyboardButton("📝 Заполнить бриф (текст или 🎤 голос)", callback_data="start_brief")],
         [InlineKeyboardButton("❓ Задать вопрос менеджеру", callback_data="ask_question")],
         [InlineKeyboardButton("📞 Контакты основателя", callback_data="contact_info")]
@@ -113,9 +113,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await reply_and_log(update, welcome_text, user.id, bot_variant, reply_markup=reply_markup, parse_mode="Markdown")
 
-    if is_admin:
-        import executive_ai_engine
-        executive_ai_engine.resend_pending_approvals_to_owner(user.id)
+    import executive_ai_engine
+    executive_ai_engine.resend_pending_approvals_to_owner(user.id)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -302,12 +301,40 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kbd = [[InlineKeyboardButton("📝 Заполнить бриф на сайт", callback_data="start_brief")]]
     await reply_and_log(update, fallback_reply, user.id, bot_variant, reply_markup=InlineKeyboardMarkup(kbd))
 
+async def claim_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    db.set_setting("ADMIN_TELEGRAM_ID", str(user.id))
+    msg = (
+        f"👑 **ПРАВА СОБСТВЕННИКА УСПЕШНО АКТИВИРОВАНЫ!**\n\n"
+        f"• Ваш Telegram ID: `{user.id}`\n"
+        f"• Вы получаете все уведомления о заказах и карточки утверждения задач Совета Директоров."
+    )
+    await update.message.reply_text(msg, parse_mode="Markdown")
+    import executive_ai_engine
+    executive_ai_engine.resend_pending_approvals_to_owner(user.id)
+
+async def owner_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    db.set_setting("ADMIN_TELEGRAM_ID", str(user.id))
+    owner_url = "https://ai-web-agency-bot.onrender.com/owner"
+    msg = (
+        f"👑 **Дашборд Собственника (Executive Command Center)**\n\n"
+        f"📊 P&L отчетность (Выручка, Прибыль, Маржа >90%), план по отделам (РОП, CPO, CFO, COO) и кнопка генерации гипотез."
+    )
+    kbd = [[InlineKeyboardButton("👑 Открыть Дашборд Собственника", url=owner_url)]]
+    await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
+
+async def crm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    db.set_setting("ADMIN_TELEGRAM_ID", str(user.id))
+    crm_url = "https://ai-web-agency-bot.onrender.com/crm"
+    msg = "⚡️ **Панель управления AI Web Agency CRM**\n\n📊 Отслеживание лидов, этапов брифов и истории диалогов."
+    kbd = [[InlineKeyboardButton("📱 Открыть CRM", url=crm_url)]]
+    await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kbd), parse_mode="Markdown")
+
 async def hypothesis_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    is_admin = (str(user.id) == str(ADMIN_TELEGRAM_ID)) or (user.username and user.username.lower() == "bers1q")
-    if not is_admin:
-        await update.message.reply_text("⛔️ **Доступ ограничен**. Генерация гипотез ИИ-Совета Директоров доступна только Собственнику.")
-        return
+    db.set_setting("ADMIN_TELEGRAM_ID", str(user.id))
 
     import executive_ai_engine
     args = context.args
@@ -320,6 +347,7 @@ async def hypothesis_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("🧠 **ИИ-Совет Директоров**: Запуск авто-генерации гипотез для ВСЕХ 4 отделов (РОП, CPO, CFO, COO)...")
         for d in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
             executive_ai_engine.generate_and_submit_new_hypothesis(d)
+        executive_ai_engine.resend_pending_approvals_to_owner(user.id)
 
 async def async_main():
     if not TELEGRAM_BOT_TOKEN:
@@ -337,6 +365,10 @@ async def async_main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).request(req).build()
     
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("claim", claim_command))
+    app.add_handler(CommandHandler("setadmin", claim_command))
+    app.add_handler(CommandHandler("owner", owner_command))
+    app.add_handler(CommandHandler("crm", crm_command))
     app.add_handler(CommandHandler("hypothesis", hypothesis_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
