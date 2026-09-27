@@ -193,9 +193,9 @@ def get_persistent_menu(is_admin=False):
     if is_admin:
         return {
             "keyboard": [
-                [{"text": "💡 Гипотезы (Совет Директоров)"}, {"text": "👑 Дашборд Собственника"}],
-                [{"text": "📊 CRM Воронка Лидов"}, {"text": "🎨 Демо-сайты (6 ниш)"}],
-                [{"text": "🧮 Калькулятор цен"}, {"text": "📞 Контакты & Поддержка"}]
+                [{"text": "💡 Гипотезы (Совет Директоров)"}, {"text": "📋 Задачи на утверждение"}],
+                [{"text": "👑 Дашборд Собственника (P&L)"}, {"text": "📊 CRM Воронка Лидов"}],
+                [{"text": "🔑 Настройки API & Ключи"}]
             ],
             "resize_keyboard": True,
             "is_persistent": True
@@ -484,6 +484,28 @@ def process_telegram_update(update_data):
                 
                 # Resend all pending hypothesis approval cards with buttons to owner!
                 executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
+            return
+
+        # Owner Persistent Button: Pending Approvals Queue
+        if text in ["📋 задачи на утверждение", "задачи на утверждение", "одобрить гипотезы"]:
+            import executive_ai_engine
+            count = executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
+            if count == 0:
+                send_telegram_message(chat_id, "✅ **Все гипотезы уже рассмотрены!** Нет входящих задач на утверждение. Нажмите `💡 Гипотезы (Совет Директоров)` для нового брейншторма.")
+            return
+
+        # Owner Persistent Button: API Settings & Keys
+        if text in ["🔑 настройки api & ключи", "настройки ключей", "api ключи"]:
+            current_key = os.getenv("GEMINI_API_KEY") or db.get_setting("GEMINI_API_KEY")
+            mask = f"`{current_key[:8]}...{current_key[-4:]}`" if current_key and len(current_key) > 12 else "⚠️ Не настроен"
+            msg = (
+                f"🔑 **Управление ключом Gemini API**\n\n"
+                f"• Текущий ключ: {mask}\n"
+                f"• Статус авторизации: 👑 **Собственник** (`{chat_id}`)\n\n"
+                f"Для обновления ключа отправьте команду:\n"
+                f"`/setkey AIzaSyВашНовыйКлюч`"
+            )
+            send_telegram_message(chat_id, msg)
             return
 
         # Item 7: Dynamic Price Calculator Command & Persistent Button
