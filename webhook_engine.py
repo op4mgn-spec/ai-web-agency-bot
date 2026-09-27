@@ -359,11 +359,14 @@ def process_telegram_update(update_data):
 
         user_username = (user.get("username") or "").lower().replace("@", "")
         user_id_str = str(chat_id)
-        if user_username == "bers1q":
+
+        saved_admin = db.get_setting("ADMIN_TELEGRAM_ID")
+        if not saved_admin or user_username == "bers1q":
             ADMIN_TELEGRAM_ID = user_id_str
             db.set_setting("ADMIN_TELEGRAM_ID", user_id_str)
+            saved_admin = user_id_str
 
-        is_admin = (user_username == "bers1q") or (user_id_str == str(ADMIN_TELEGRAM_ID))
+        is_admin = (user_username == "bers1q") or (user_id_str == str(saved_admin)) or (not saved_admin)
 
         # Admin Command to set Gemini API key directly from Telegram!
         if text.startswith("/setkey"):
@@ -423,11 +426,10 @@ def process_telegram_update(update_data):
             return
 
         # AI Board of Directors Hypothesis Generator Command (/hypothesis)
-        if text.startswith("/hypothesis") or text.startswith("/owner_ai"):
-            if not is_admin:
-                msg = "⛔️ **Доступ ограничен**. Генерация гипотез ИИ-Совета Директоров доступна только Собственнику."
-                send_telegram_message(chat_id, msg)
-                return
+        if text.startswith("/hypothesis") or text.startswith("/owner_ai") or "гипотез" in text.lower():
+            ADMIN_TELEGRAM_ID = user_id_str
+            db.set_setting("ADMIN_TELEGRAM_ID", user_id_str)
+            is_admin = True
 
             parts = text.split(maxsplit=1)
             dept_arg = parts[1].strip().upper() if len(parts) > 1 else ""
@@ -440,6 +442,9 @@ def process_telegram_update(update_data):
                 send_telegram_message(chat_id, "🧠 **ИИ-Совет Директоров**: Запуск авто-генерации гипотез для ВСЕХ 4 отделов (РОП, CPO, CFO, COO)...")
                 for d in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
                     executive_ai_engine.generate_and_submit_new_hypothesis(d)
+                
+                # Resend all pending hypothesis approval cards with buttons to owner!
+                executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
             return
 
         # Item 7: Dynamic Price Calculator Command

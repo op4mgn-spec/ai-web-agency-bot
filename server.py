@@ -37,6 +37,20 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
+        # Webhook Reset Endpoint: Sets Telegram Webhook with ALL allowed updates
+        elif path == "/set-webhook":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            try:
+                base_url = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
+                wh_url = f"{base_url.rstrip('/')}/webhook"
+                r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook", json={"url": wh_url, "drop_pending_updates": True}, timeout=10).json()
+                self.wfile.write(json.dumps(r, ensure_ascii=False, indent=2).encode("utf-8"))
+            except Exception as e:
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
         # Healthcheck / Keep-Alive Ping
         elif path in ["/ping", "/health"]:
             self.send_response(200)
