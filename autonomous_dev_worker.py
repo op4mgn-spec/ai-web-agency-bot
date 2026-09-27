@@ -166,7 +166,10 @@ def execute_dev_task(task):
 
 В твоем распоряжении модули проекта:
 - `db.py`: содержит get_connection(), init_db(), get_department_initiatives(), add_department_initiative_with_approval(), deduplicate_initiatives(), delete_department_initiative(id), get_all_leads_crm(), get_owner_dashboard_data(), get_implemented_initiatives_journal()
-- `executive_ai_engine.py`: содержит generate_and_submit_new_hypothesis(department), DEPARTMENT_ROLES, resend_pending_approvals_to_owner(chat_id), format_initiatives_journal_for_telegram(chat_id)
+  * СТРУКТУРА get_implemented_initiatives_journal(): возвращает список групп по дням:
+    [{'date': '2026-09-27', 'count': 2, 'initiatives': [{'id': 1, 'role_title': 'РОП', 'title': '...', 'description': '...', 'kpi': '...', 'hypothesis_impact': '...'}]}]
+- `executive_ai_engine.py`: содержит export_journal_to_google_drive(), generate_journal_html(), format_initiatives_journal_for_telegram(chat_id), generate_and_submit_new_hypothesis(department), DEPARTMENT_ROLES, resend_pending_approvals_to_owner(chat_id)
+  * Google Диск пользователя находится локально по пути: r"G:\Мой диск". Файлы, сохраненные туда, автоматически синхронизируются в Google Drive облако.
 - `server.py`, `webhook_engine.py`, `owner_dashboard.html`, `crm_dashboard.html`
 
 ТОЧНАЯ СХЕМА ТАБЛИЦ SQLite (agency.db):

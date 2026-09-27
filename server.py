@@ -256,6 +256,16 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "chat_id": target_chat}, ensure_ascii=False).encode("utf-8"))
             return
 
+        # Document View: Styled Google Docs layout for Implemented Initiatives Journal
+        elif path in ["/journal/doc", "/journal_doc", "/journal"]:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            import executive_ai_engine
+            html_doc = executive_ai_engine.generate_journal_html()
+            self.wfile.write(html_doc.encode("utf-8"))
+            return
+
 
 
         # API: Owner Executive Dashboard Combined Data

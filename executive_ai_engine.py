@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 import db
 import webhook_engine
 
@@ -331,7 +332,287 @@ def apply_owner_edits_to_hypothesis(init_id: int, feedback_text: str, chat_id: i
 
     webhook_engine.send_telegram_message(chat_id, msg, reply_markup=kbd)
 
+def generate_journal_html():
+    journal = db.get_implemented_initiatives_journal()
+    now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+    total_inits = sum(d.get("count", 0) for d in journal)
+
+    days_html = ""
+    for group in journal:
+        day_date = group.get("date")
+        count = group.get("count", 0)
+        items_html = ""
+        for init in group.get("initiatives", []):
+            role = init.get("role_title", "ИИ-Директор")
+            title = init.get("title", "Инициатива")
+            desc = init.get("description", "")
+            kpi = init.get("kpi", "—")
+            impact = init.get("hypothesis_impact", "—")
+            result = init.get("executed_results", "Внедрено и активно")
+            
+            items_html += f"""
+            <div class="init-card">
+                <div class="card-header">
+                    <span class="role-badge">{role}</span>
+                    <span class="init-title">{title}</span>
+                </div>
+                <div class="init-desc">{desc}</div>
+                <div class="init-meta">
+                    <div class="meta-item"><span class="label">🎯 KPI:</span> <strong>{kpi}</strong></div>
+                    <div class="meta-item"><span class="label">💰 Эффект:</span> <strong style="color: #059669;">{impact}</strong></div>
+                    <div class="meta-item"><span class="label">✅ Статус:</span> <span>{result}</span></div>
+                </div>
+            </div>
+            """
+        
+        days_html += f"""
+        <div class="day-section">
+            <div class="day-header">
+                <h2>🗓 {day_date}</h2>
+                <span class="day-count">{count} внедрено</span>
+            </div>
+            {items_html}
+        </div>
+        """
+
+    html_doc = f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Web Studio — Журнал реализованных гипотез</title>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        @page {{ margin: 20mm; }}
+        body {{
+            font-family: 'Google Sans', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            margin: 0;
+            padding: 30px 15px;
+            display: flex;
+            justify-content: center;
+        }}
+        .doc-page {{
+            width: 100%;
+            max-width: 860px;
+            background: #ffffff;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 50px 60px;
+            box-sizing: border-box;
+            border: 1px solid #e2e8f0;
+        }}
+        .doc-header {{
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 25px;
+            margin-bottom: 30px;
+        }}
+        .doc-title {{
+            font-size: 28px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0 0 8px 0;
+        }}
+        .doc-subtitle {{
+            font-size: 15px;
+            color: #64748b;
+            margin: 0;
+        }}
+        .summary-ribbon {{
+            display: flex;
+            gap: 20px;
+            background: #f1f5f9;
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }}
+        .summary-box {{
+            flex: 1;
+        }}
+        .summary-box .val {{
+            font-size: 20px;
+            font-weight: 700;
+            color: #2563eb;
+        }}
+        .summary-box .lbl {{
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-top: 2px;
+        }}
+        .day-section {{
+            margin-bottom: 35px;
+        }}
+        .day-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }}
+        .day-header h2 {{
+            font-size: 18px;
+            color: #1e293b;
+            margin: 0;
+        }}
+        .day-count {{
+            background: #e0e7ff;
+            color: #3730a3;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+        }}
+        .init-card {{
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #2563eb;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 14px;
+        }}
+        .card-header {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }}
+        .role-badge {{
+            background: #2563eb;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }}
+        .init-title {{
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+        }}
+        .init-desc {{
+            font-size: 14px;
+            line-height: 1.5;
+            color: #334155;
+            margin-bottom: 12px;
+        }}
+        .init-meta {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            font-size: 12px;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 10px;
+        }}
+        .meta-item .label {{
+            color: #64748b;
+        }}
+        .actions-bar {{
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-bottom: 20px;
+        }}
+        .btn {{
+            background: #2563eb;
+            color: #ffffff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+        }}
+        @media print {{
+            body {{ background: #fff; padding: 0; }}
+            .doc-page {{ box-shadow: none; border: none; padding: 0; }}
+            .actions-bar {{ display: none; }}
+        }}
+    </style>
+</head>
+<body>
+    <div style="width: 100%; max-width: 860px;">
+        <div class="actions-bar">
+            <button class="btn" onclick="window.print()">🖨 Печать / PDF</button>
+            <a href="https://t.me/Antigravitybers1q_bot" class="btn" style="background: #10b981;">📱 Открыть в Telegram</a>
+        </div>
+        <div class="doc-page">
+            <div class="doc-header">
+                <h1 class="doc-title">AI Web Studio — Журнал реализованных гипотез</h1>
+                <p class="doc-subtitle">Единая хроника побед и внедренных улучшений для Собственника (Solopreneur Model)</p>
+                <div class="summary-ribbon">
+                    <div class="summary-box">
+                        <div class="val">{total_inits}</div>
+                        <div class="lbl">Всего внедрено</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="val">4 роли</div>
+                        <div class="lbl">РОП • CPO • CFO • COO</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="val">{now_str}</div>
+                        <div class="lbl">Синхронизировано</div>
+                    </div>
+                </div>
+            </div>
+            {days_html if days_html else '<p style="color: #64748b; text-align: center; padding: 40px 0;">Пока нет реализованных гипотез.</p>'}
+        </div>
+    </div>
+</body>
+</html>"""
+    return html_doc
+
+def export_journal_to_google_drive():
+    html_content = generate_journal_html()
+    
+    # 1. Save locally in repo for Render / Web viewing
+    local_path = os.path.join(os.path.dirname(__file__), "journal_doc.html")
+    try:
+        with open(local_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+    except Exception:
+        pass
+        
+    # 2. Save directly to Google Drive (G:\Мой диск)
+    gdrive_dir = r"G:\Мой диск"
+    synced_paths = []
+    if os.path.exists(gdrive_dir):
+        gdrive_file = os.path.join(gdrive_dir, "Журнал_Гипотез_AI_Web_Studio.html")
+        try:
+            with open(gdrive_file, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            synced_paths.append(gdrive_file)
+            print(f"[+] Synced journal to Google Drive: {gdrive_file}")
+        except Exception as e:
+            print(f"[-] Error writing to Google Drive: {e}")
+            
+        # Also markdown version
+        md_file = os.path.join(gdrive_dir, "Журнал_Гипотез_AI_Web_Studio.md")
+        try:
+            journal = db.get_implemented_initiatives_journal()
+            md_lines = ["# AI Web Studio — Журнал реализованных гипотез\n\n"]
+            for g in journal:
+                md_lines.append(f"## 🗓 Дата: {g.get('date')} ({g.get('count')} внедрено)\n\n")
+                for i in g.get("initiatives", []):
+                    md_lines.append(f"### [{i.get('role_title')}] {i.get('title')}\n")
+                    md_lines.append(f"- **Суть**: {i.get('description')}\n")
+                    md_lines.append(f"- **KPI**: `{i.get('kpi')}`\n")
+                    md_lines.append(f"- **Эффект**: `{i.get('hypothesis_impact')}`\n")
+                    md_lines.append(f"- **Результат**: {i.get('executed_results')}\n\n")
+            with open(md_file, "w", encoding="utf-8") as f:
+                f.write("".join(md_lines))
+            synced_paths.append(md_file)
+        except Exception:
+            pass
+
+    return local_path, synced_paths
+
 def format_initiatives_journal_for_telegram(chat_id: int):
+    local_p, synced = export_journal_to_google_drive()
     journal = db.get_implemented_initiatives_journal()
     if not journal:
         msg = (
@@ -347,6 +628,8 @@ def format_initiatives_journal_for_telegram(chat_id: int):
     lines = [
         f"📅 **ЖУРНАЛ РЕАЛИЗОВАННЫХ ГИПОТЕЗ (ХРОНИКА ПОБЕД)**\n"
         f"👑 Всего внедрено: **{total_inits} инициатив**\n"
+        f"📁 Документ синхронизирован на ваш **Google Диск**:\n"
+        f"`G:\\Мой диск\\Журнал_Гипотез_AI_Web_Studio.html`"
     ]
 
     for day_group in journal[:7]: # Show recent days
@@ -367,6 +650,7 @@ def format_initiatives_journal_for_telegram(chat_id: int):
     msg_text = "\n".join(lines)
     kbd = {
         "inline_keyboard": [
+            [{"text": "📄 Открыть документ Google Docs / Веб", "url": "https://ai-web-agency-bot.onrender.com/journal/doc"}],
             [{"text": "👑 Открыть Дашборд с журналом", "url": "https://ai-web-agency-bot.onrender.com/owner"}],
             [{"text": "📋 Задачи на утверждение", "callback_data": "show_approvals"}]
         ]

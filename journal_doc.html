@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Web Studio — Журнал реализованных гипотез</title>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        @page { margin: 20mm; }
+        body {
+            font-family: 'Google Sans', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            margin: 0;
+            padding: 30px 15px;
+            display: flex;
+            justify-content: center;
+        }
+        .doc-page {
+            width: 100%;
+            max-width: 860px;
+            background: #ffffff;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            padding: 50px 60px;
+            box-sizing: border-box;
+            border: 1px solid #e2e8f0;
+        }
+        .doc-header {
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 25px;
+            margin-bottom: 30px;
+        }
+        .doc-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0 0 8px 0;
+        }
+        .doc-subtitle {
+            font-size: 15px;
+            color: #64748b;
+            margin: 0;
+        }
+        .summary-ribbon {
+            display: flex;
+            gap: 20px;
+            background: #f1f5f9;
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .summary-box {
+            flex: 1;
+        }
+        .summary-box .val {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+        .summary-box .lbl {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        .day-section {
+            margin-bottom: 35px;
+        }
+        .day-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }
+        .day-header h2 {
+            font-size: 18px;
+            color: #1e293b;
+            margin: 0;
+        }
+        .day-count {
+            background: #e0e7ff;
+            color: #3730a3;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+        .init-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #2563eb;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 14px;
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .role-badge {
+            background: #2563eb;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+        .init-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .init-desc {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #334155;
+            margin-bottom: 12px;
+        }
+        .init-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            font-size: 12px;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 10px;
+        }
+        .meta-item .label {
+            color: #64748b;
+        }
+        .actions-bar {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background: #2563eb;
+            color: #ffffff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        @media print {
+            body { background: #fff; padding: 0; }
+            .doc-page { box-shadow: none; border: none; padding: 0; }
+            .actions-bar { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div style="width: 100%; max-width: 860px;">
+        <div class="actions-bar">
+            <button class="btn" onclick="window.print()">🖨 Печать / PDF</button>
+            <a href="https://t.me/Antigravitybers1q_bot" class="btn" style="background: #10b981;">📱 Открыть в Telegram</a>
+        </div>
+        <div class="doc-page">
+            <div class="doc-header">
+                <h1 class="doc-title">AI Web Studio — Журнал реализованных гипотез</h1>
+                <p class="doc-subtitle">Единая хроника побед и внедренных улучшений для Собственника (Solopreneur Model)</p>
+                <div class="summary-ribbon">
+                    <div class="summary-box">
+                        <div class="val">3</div>
+                        <div class="lbl">Всего внедрено</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="val">4 роли</div>
+                        <div class="lbl">РОП • CPO • CFO • COO</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="val">27.09.2026 21:32</div>
+                        <div class="lbl">Синхронизировано</div>
+                    </div>
+                </div>
+            </div>
+            
+        <div class="day-section">
+            <div class="day-header">
+                <h2>🗓 2026-09-27</h2>
+                <span class="day-count">2 внедрено</span>
+            </div>
+            
+            <div class="init-card">
+                <div class="card-header">
+                    <span class="role-badge">РОП (Руководитель Отдела Продаж)</span>
+                    <span class="init-title">Авто-квалификация лидов в Telegram-боте</span>
+                </div>
+                <div class="init-desc">Внедрен алгоритм скоринга запросов клиентов по бюджету и срочности без участия живого менеджера.</div>
+                <div class="init-meta">
+                    <div class="meta-item"><span class="label">🎯 KPI:</span> <strong>+18% конверсия в бриф</strong></div>
+                    <div class="meta-item"><span class="label">💰 Эффект:</span> <strong style="color: #059669;">+22 000 руб/мес</strong></div>
+                    <div class="meta-item"><span class="label">✅ Статус:</span> <span>Успешно работает в Telegram боте</span></div>
+                </div>
+            </div>
+            
+            <div class="init-card">
+                <div class="card-header">
+                    <span class="role-badge">CPO (Продукт-Менеджер)</span>
+                    <span class="init-title">AI-генерация интерактивного калькулятора цен</span>
+                </div>
+                <div class="init-desc">Внедрен динамический JS-калькулятор сметы прямо в веб-макеты клиентов.</div>
+                <div class="init-meta">
+                    <div class="meta-item"><span class="label">🎯 KPI:</span> <strong>Сокращение цикла согласования с 6ч до 15 мин</strong></div>
+                    <div class="meta-item"><span class="label">💰 Эффект:</span> <strong style="color: #059669;">+15 000 руб/мес</strong></div>
+                    <div class="meta-item"><span class="label">✅ Статус:</span> <span>Модуль калькулятора встроен в генератор</span></div>
+                </div>
+            </div>
+            
+        </div>
+        
+        <div class="day-section">
+            <div class="day-header">
+                <h2>🗓 2026-09-26</h2>
+                <span class="day-count">1 внедрено</span>
+            </div>
+            
+            <div class="init-card">
+                <div class="card-header">
+                    <span class="role-badge">COO (Операционный Директор)</span>
+                    <span class="init-title">Автоматическая валидация верстки HTML5/W3C</span>
+                </div>
+                <div class="init-desc">Настроен headless-валидатор для проверки чистоты кода перед отправкой сайта клиенту.</div>
+                <div class="init-meta">
+                    <div class="meta-item"><span class="label">🎯 KPI:</span> <strong>0 критических багов верстки</strong></div>
+                    <div class="meta-item"><span class="label">💰 Эффект:</span> <strong style="color: #059669;">Экономия 4 часов/неделю</strong></div>
+                    <div class="meta-item"><span class="label">✅ Статус:</span> <span>Скрипт проверки развернут на сервере</span></div>
+                </div>
+            </div>
+            
+        </div>
+        
+        </div>
+    </div>
+</body>
+</html>
