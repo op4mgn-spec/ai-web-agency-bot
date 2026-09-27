@@ -4,6 +4,7 @@ import logging
 import base64
 import requests
 import re
+import urllib.parse
 from datetime import datetime, timedelta
 import db
 from generator import generate_website_html
@@ -139,7 +140,17 @@ def send_telegram_message(chat_id, text, reply_markup=None, parse_mode="Markdown
             db.log_chat_message(int(chat_id), "BOT", text, bot_variant)
         return res
     except Exception as e:
-        print(f"Error sending telegram message: {e}")
+        print(f"Direct telegram send failed: {e}. Trying Render cloud proxy fallback...")
+        try:
+            render_base = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
+            proxy_url = f"{render_base.rstrip('/')}/send-msg?chat_id={chat_id}&text=" + urllib.parse.quote(text)
+            r_proxy = requests.get(proxy_url, timeout=15)
+            if r_proxy.status_code == 200:
+                print("✅ Telegram message successfully delivered via Render cloud proxy!")
+                return r_proxy.json()
+        except Exception as proxy_e:
+            print(f"Render proxy fallback error: {proxy_e}")
+
         try:
             db.set_setting("LAST_TELEGRAM_SEND_RESULT", json.dumps({"to_chat": chat_id, "error": str(e)}, ensure_ascii=False))
         except Exception:

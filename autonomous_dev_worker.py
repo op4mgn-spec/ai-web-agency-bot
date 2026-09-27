@@ -85,6 +85,30 @@ def execute_dev_task(task):
             db.update_autonomous_task(task_id, "COMPLETED", summary=summary)
             return
 
+        # Fast Shortcut: Autopilot / Sleep / Away Mode
+        if any(w in prompt_lower for w in ["режим моего отсутствия", "режим отсутствия", "ложусь спать", "пока я не пишу", "пока я отсутствую", "я спать", "включи автопилот"]):
+            log(f"Intercepted 'Режим отсутствия / Сон' for task #{task_id}")
+            import autopilot_engine
+            db.set_setting(autopilot_engine.KEY_ENABLED, "true")
+            db.set_setting(autopilot_engine.KEY_LAST_USER_TIME, "0")
+            tick_res = autopilot_engine.run_autopilot_tick()
+            summary = (
+                f"🌙 **Режим отсутствия Собственника активирован!**\n\n"
+                f"Ночной автопилот 24/7 успешно включен. Первый шаг плана выполнен:\n"
+                f"• {tick_res.get('action') or 'Очереди и воронка проверены'}\n\n"
+                f"Система продолжит выполнять задачи по плану каждые 10 минут, пока вы отдыхаете. "
+                f"Как только вы проснетесь и напишете боту, он выдаст полный дайджест проделанной работы. Спокойной ночи, Евгений!"
+            )
+            db.update_autonomous_task(task_id, "COMPLETED", summary=summary)
+            try:
+                requests.post(f"{RENDER_URL.rstrip('/')}/api/dev_tasks/complete", json={
+                    "id": task_id, "chat_id": chat_id, "status": "COMPLETED", "summary": summary
+                }, timeout=5)
+            except Exception:
+                pass
+            webhook_engine.send_telegram_message(int(chat_id), f"✅ **Задача выполнена!**\n\n{summary}")
+            return
+
         # 2. Fast Shortcut: Deduplication
         if any(w in prompt_lower for w in ["дубликат", "дубли", "дедупликац"]) and len(prompt.split()) <= 6:
             log(f"Executing hypothesis deduplication for task #{task_id}")
