@@ -37,7 +37,7 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        # Webhook Reset Endpoint: Sets Telegram Webhook with ALL allowed updates
+        # Webhook & Command Menu Reset Endpoint: Sets Webhook and Telegram persistent command menu
         elif path == "/set-webhook":
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -45,8 +45,24 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 base_url = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
                 wh_url = f"{base_url.rstrip('/')}/webhook"
-                r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook", json={"url": wh_url, "drop_pending_updates": True}, timeout=10).json()
-                self.wfile.write(json.dumps(r, ensure_ascii=False, indent=2).encode("utf-8"))
+                r_wh = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook", json={"url": wh_url, "drop_pending_updates": True}, timeout=10).json()
+                
+                # Register built-in Telegram command menu [/]
+                cmd_payload = {
+                    "commands": [
+                        {"command": "start", "description": "🔄 Главное меню и панели управления"},
+                        {"command": "hypothesis", "description": "💡 Совет Директоров: Запустить брейншторм"},
+                        {"command": "owner", "description": "👑 Дашборд Собственника (P&L, Прибыль)"},
+                        {"command": "crm", "description": "📊 CRM-система управления лидами"},
+                        {"command": "calculator", "description": "🧮 Калькулятор стоимости сайта"},
+                        {"command": "promo", "description": "🎟 Активировать промокод на скидку"},
+                        {"command": "setkey", "description": "🔑 Установить Gemini API ключ"}
+                    ]
+                }
+                r_cmd = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMyCommands", json=cmd_payload, timeout=10).json()
+                
+                res = {"setWebhook": r_wh, "setMyCommands": r_cmd}
+                self.wfile.write(json.dumps(res, ensure_ascii=False, indent=2).encode("utf-8"))
             except Exception as e:
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return

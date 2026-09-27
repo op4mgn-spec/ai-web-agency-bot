@@ -189,6 +189,28 @@ def detect_niche_key(text: str) -> str:
                 return key
     return None
 
+def get_persistent_menu(is_admin=False):
+    if is_admin:
+        return {
+            "keyboard": [
+                [{"text": "💡 Гипотезы (Совет Директоров)"}, {"text": "👑 Дашборд Собственника"}],
+                [{"text": "📊 CRM Воронка Лидов"}, {"text": "🎨 Демо-сайты (6 ниш)"}],
+                [{"text": "🧮 Калькулятор цен"}, {"text": "📞 Контакты & Поддержка"}]
+            ],
+            "resize_keyboard": True,
+            "is_persistent": True
+        }
+    else:
+        return {
+            "keyboard": [
+                [{"text": "📝 Заполнить бриф на сайт"}, {"text": "🎨 Демо-сайты (6 ниш)"}],
+                [{"text": "🧮 Калькулятор цен"}, {"text": "💬 Задать вопрос ИИ"}],
+                [{"text": "📞 Контакты & Поддержка"}]
+            ],
+            "resize_keyboard": True,
+            "is_persistent": True
+        }
+
 def process_telegram_update(update_data):
     global GEMINI_API_KEY, ADMIN_TELEGRAM_ID
     db.init_db()
@@ -403,8 +425,25 @@ def process_telegram_update(update_data):
                 send_telegram_message(chat_id, "🔑 **Инструкция**: Отправьте команду в формате:\n`/setkey AIzaSyВашСкопированныйКлюч`")
             return
 
+        # Owner Executive Dashboard Command (/owner or Persistent Button)
+        if text.startswith("/owner") or text.startswith("/executive") or "дашборд собственника" in text.lower():
+            crm_base = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
+            owner_url = f"{crm_base.rstrip('/')}/owner"
+            msg = (
+                f"👑 **Дашборд Собственника (Executive Command Center)**\n\n"
+                f"📊 Финансовые отчеты (P&L, Выручка, Чистая прибыль, Маржинальность >90%), "
+                f"исполнительный план по отделам (РОП, CPO, CFO, COO) и кнопка генерации гипотез.\n\n"
+                f"Выберите способ открытия:"
+            )
+            kbd = {"inline_keyboard": [
+                [{"text": "👑 Открыть Дашборд в Telegram (WebApp)", "web_app": {"url": owner_url}}],
+                [{"text": "🌐 Открыть Дашборд в браузере", "url": owner_url}]
+            ]}
+            send_telegram_message(chat_id, msg, reply_markup=kbd)
+            return
+
         # CRM Command to open Web CRM system directly in Telegram or Browser!
-        if text in ["/crm", "/admin", "/dashboard", "/crm_dashboard"]:
+        if text in ["/crm", "/admin", "/dashboard", "/crm_dashboard"] or "crm воронка" in text.lower():
             crm_base = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
             crm_url = f"{crm_base.rstrip('/')}/crm"
             
@@ -447,8 +486,8 @@ def process_telegram_update(update_data):
                 executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
             return
 
-        # Item 7: Dynamic Price Calculator Command
-        if text in ["/calculator", "/calc", "калькулятор"]:
+        # Item 7: Dynamic Price Calculator Command & Persistent Button
+        if text in ["/calculator", "/calc", "калькулятор", "🧮 калькулятор цен"]:
             msg = (
                 "🧮 **Калькулятор стоимости разработки сайта**\n\n"
                 "• Базовый продающий лендинг (24 часа): **9 900 руб.**\n"
@@ -460,6 +499,44 @@ def process_telegram_update(update_data):
             )
             kbd = {"inline_keyboard": [[{"text": "📝 Заполнить бриф на сайт", "callback_data": "start_brief"}]]}
             send_telegram_message(chat_id, msg, reply_markup=kbd)
+            return
+
+        # Handle persistent menu button: Briefing
+        if text in ["/brief", "📝 заполнить бриф на сайт", "📝 заполнить бриф (текст или 🎤 голос)"]:
+            user_states[chat_id] = {"step": 1, "brief": {}}
+            db.update_brief_step(chat_id, 1)
+            msg = "📋 **Разработка сайта — Шаг 1 из 7**\n\nНапишите или 🎤 **надиктуйте голосом** официальное название вашей компании или проекта:"
+            db.log_chat_message(chat_id, "BOT", msg, bot_variant)
+            send_telegram_message(chat_id, msg)
+            return
+
+        # Handle persistent menu button: Demos
+        if text in ["/demo", "🎨 демо-сайты (6 ниш)", "🎨 примеры сайтов по нишам (6 демо)"]:
+            crm_base = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
+            base = crm_base.rstrip('/')
+            msg = "🎨 **Примеры готовых сайтов по популярным нишам**\n\nВыберите вашу сферу бизнеса, чтобы открылся интерактивный демо-сайт:"
+            kbd = {"inline_keyboard": [
+                [{"text": "🚘 Автосервис & СТО", "url": f"{base}/generated_sites/demo_auto.html"}],
+                [{"text": "🧹 Клининг & Уборка", "url": f"{base}/generated_sites/demo_cleaning.html"}],
+                [{"text": "🦷 Стоматология & Медицина", "url": f"{base}/generated_sites/demo_dental.html"}],
+                [{"text": "🔨 Ремонт квартир", "url": f"{base}/generated_sites/demo_repair.html"}],
+                [{"text": "⚖️ Юридические услуги", "url": f"{base}/generated_sites/demo_legal.html"}],
+                [{"text": "💅 Салон красоты & СПА", "url": f"{base}/generated_sites/demo_beauty.html"}]
+            ]}
+            send_telegram_message(chat_id, msg, reply_markup=kbd)
+            return
+
+        # Handle persistent menu button: Contacts / Support
+        if text in ["/contacts", "/support", "📞 контакты & поддержка", "📞 контакты основателя"]:
+            msg = "📞 **Связь со службой поддержки AI Web Studio**\n\nВы можете надиктовать голосом любой вопрос прямо сюда в чат или написать наши специалистам!"
+            send_telegram_message(chat_id, msg)
+            return
+
+        # Handle persistent menu button: Q&A Mode
+        if text in ["💬 задать вопрос ии", "❓ задать вопрос менеджеру"]:
+            user_states[chat_id] = {"step": None}
+            msg = "💬 Задайте любой вопрос текстом или 🎤 **надиктуйте голосом** по созданию сайта, стоимости или гарантиям!"
+            send_telegram_message(chat_id, msg)
             return
 
         # Item 41: Promo Coupon Engine Command
@@ -560,6 +637,10 @@ def process_telegram_update(update_data):
             kbd = {"inline_keyboard": buttons}
             db.log_chat_message(chat_id, "BOT", welcome, bot_variant)
             send_telegram_message(chat_id, welcome, reply_markup=kbd)
+
+            # Send persistent ReplyKeyboard under text input box
+            menu_kbd = get_persistent_menu(is_admin)
+            send_telegram_message(chat_id, "📱 **Интерактивное меню подключено!** Все кнопки действий активны прямо под окном ввода ⬇️", reply_markup=menu_kbd)
 
             if is_admin:
                 import executive_ai_engine
