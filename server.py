@@ -471,8 +471,12 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
 def run_server():
-    with socketserver.TCPServer(("", PORT), CRMHandler) as httpd:
+    with ThreadedTCPServer(("", PORT), CRMHandler) as httpd:
         print(f"Web CRM & Health Server running at http://0.0.0.0:{PORT}")
         httpd.serve_forever()
 
