@@ -27,13 +27,15 @@ POLL_INTERVAL = 5 # seconds
 def log(msg):
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [AutoDev Worker] {msg}", flush=True)
 
-def run_cmd(cmd_list, cwd=None):
+def run_cmd(cmd_list, cwd=None, timeout=40):
     try:
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
-        res = subprocess.run(cmd_list, cwd=cwd or os.path.dirname(__file__), capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60, env=env)
+        res = subprocess.run(cmd_list, cwd=cwd or os.path.dirname(__file__), capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, env=env)
         return res.returncode, res.stdout.strip(), res.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return 1, "", f"Command timed out after {timeout} seconds (Обнаружен зависший или бесконечный цикл `while True` без выхода! Внимание: синхронный скрипт обязан завершаться за несколько секунд. Фоновые процессы нужно запускать через отдельный сервис/поток/модуль, а не крутить в основном теле скрипта)."
     except Exception as e:
         return 1, "", str(e)
 
@@ -208,37 +210,79 @@ def execute_dev_task(task):
 Скрипт должен вывести в stdout (через print) краткий человекопонятный отчет о том, ЧТО именно было сделано.
 НЕ глуши ошибки конструкциями try...except без перевызова (raise), скрипт должен падать при ошибке, чтобы система знала правду!
 
+СТРОЖАЙШИЙ ЗАПРЕТ:
+- Категорически ЗАПРЕЩЕНО писать бесконечные циклы `while True:` или длинные паузы в основном теле скрипта!
+- Скрипт выполняется СИНХРОННО и обязан завершиться за 3-5 секунд.
+- Если требуется автопилот или периодическое выполнение, регистрируй настройки в БД / модуле autopilot_engine или создавай отдельный фоновый модуль, но сам скрипт должен отработать и завершиться!
+
 ВАЖНО:
 - Верни ТОЛЬКО код скрипта внутри блока ```python ... ```.
-- Не используй сторонние библиотеки, только стандартные модули Python и db / executive_ai_engine / sqlite3.
+- Не используй сторонние библиотеки, только стандартные модули Python и db / executive_ai_engine / autopilot_engine / yandex_maps_parser / sqlite3.
 """
-            ai_resp, err = webhook_engine.safe_generate_ai(llm_prompt)
-            # If quota hit, check retry time and auto-wait with user notification!
-            if not ai_resp and err and any(kw in err.lower() for kw in ["quota", "limit", "429", "лимит", "retry"]):
-                m = re.search(r"(\d+(?:\.\d+)?)\s*сек", err) or re.search(r"retry\s+in\s+([0-9\.]+)\s*s", err, re.IGNORECASE)
-                retry_sec = float(m.group(1)) if m else 55.0
-                if retry_sec <= 70:
-                    reset_time_str = (datetime.now() + timedelta(seconds=retry_sec)).strftime('%H:%M:%S')
-                    log(f"⏳ Quota limit exceeded. Auto-waiting {retry_sec:.1f}s until {reset_time_str}...")
-                    if chat_id:
-                        status_msg = (
-                            f"⏳ **Временный минутный лимит Gemini API (20 запр/мин)**.\n\n"
-                            f"• Ожидание сброса лимита: **~{int(round(retry_sec))} сек**.\n"
-                            f"• Время авто-возобновления: `{reset_time_str}`\n\n"
-                            f"🤖 Воркер автоматически продолжит выполнение задачи #{task_id} после сброса таймера!"
-                        )
-                        webhook_engine.send_telegram_message(int(chat_id), status_msg)
-                    time.sleep(retry_sec + 2)
-                    log("🔄 Retrying AI generation after waiting for quota reset...")
-                    ai_resp, err = webhook_engine.safe_generate_ai(llm_prompt)
+            MAX_HEAL_ATTEMPTS = 3
+            current_llm_prompt = llm_prompt
+            last_code = ""
+            last_error = ""
+            execution_succeeded = False
 
-            if ai_resp and "```python" in ai_resp:
+            for attempt in range(1, MAX_HEAL_ATTEMPTS + 1):
+                if attempt > 1:
+                    log(f"🛠 [Self-Healing #{attempt}] Auto-fixing detected error: {last_error[:120]}...")
+                    if chat_id:
+                        webhook_engine.send_telegram_message(
+                            int(chat_id),
+                            f"🔧 **Авто-диагностика (Self-Healing)**:\nВ задаче #{task_id} перехвачена ошибка:\n`{last_error[:140]}`\n\nИИ автоматически переписывает и исправляет код (попытка {attempt}/{MAX_HEAL_ATTEMPTS})..."
+                        )
+                    current_llm_prompt = f"""{llm_prompt}
+
+🚨 ВНИМАНИЕ: Предыдущий вариант твоего кода упал С ОШИБКОЙ!
+Вот код, который упал:
+```python
+{last_code}
+```
+Вот точный текст ошибки:
+{last_error}
+
+ИНСТРУКЦИЯ ПО АВТО-ИСПРАВЛЕНИЮ:
+1. Тщательно проанализируй причину ошибки и устрани её на 100%.
+2. ЕСЛИ ОШИБКА 'timed out' или 'бесконечный цикл': КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать `while True: time.sleep(...)` в теле скрипта! Если требуется фоновая фоновая работа / автопилот, создай отдельный модуль-демон или настрой параметры через `autopilot_engine` / `db`, и заверши скрипт сразу.
+3. ЕСЛИ ОШИБКА 'TypeError' или 'no such column': используй только реальные сигнатуры функций db.py и реальные имена колонок.
+4. Напиши исправленный вариант Python-скрипта в блоке ```python ... ```.
+"""
+
+                ai_resp, err = webhook_engine.safe_generate_ai(current_llm_prompt)
+                
+                # Quota handling
+                if not ai_resp and err and any(kw in err.lower() for kw in ["quota", "limit", "429", "лимит", "retry"]):
+                    m = re.search(r"(\d+(?:\.\d+)?)\s*сек", err) or re.search(r"retry\s+in\s+([0-9\.]+)\s*s", err, re.IGNORECASE)
+                    retry_sec = float(m.group(1)) if m else 55.0
+                    if retry_sec <= 70:
+                        reset_time_str = (datetime.now() + timedelta(seconds=retry_sec)).strftime('%H:%M:%S')
+                        log(f"⏳ Quota limit exceeded. Auto-waiting {retry_sec:.1f}s until {reset_time_str}...")
+                        if chat_id and attempt == 1:
+                            status_msg = (
+                                f"⏳ **Временный минутный лимит Gemini API (20 запр/мин)**.\n\n"
+                                f"• Ожидание сброса лимита: **~{int(round(retry_sec))} сек**.\n"
+                                f"• Время авто-возобновления: `{reset_time_str}`\n\n"
+                                f"🤖 Воркер автоматически продолжит выполнение задачи #{task_id} после сброса таймера!"
+                            )
+                            webhook_engine.send_telegram_message(int(chat_id), status_msg)
+                        time.sleep(retry_sec + 2)
+                        log("🔄 Retrying AI generation after waiting for quota reset...")
+                        ai_resp, err = webhook_engine.safe_generate_ai(current_llm_prompt)
+
+                if not ai_resp or "```python" not in ai_resp:
+                    last_error = f"LLM не смог сгенерировать исполняемый блок кода: {err or (ai_resp[:100] if ai_resp else 'пустой ответ')}"
+                    continue
+
                 code_block = ai_resp.split("```python")[1].split("```")[0].strip()
+                last_code = code_block
                 scratch_file = os.path.join(repo_dir, f"_auto_exec_{task_id}.py")
                 utf8_prefix = "import sys\nif hasattr(sys.stdout, 'reconfigure'):\n    sys.stdout.reconfigure(encoding='utf-8')\nif hasattr(sys.stderr, 'reconfigure'):\n    sys.stderr.reconfigure(encoding='utf-8')\n\n"
                 with open(scratch_file, "w", encoding="utf-8") as f:
                     f.write(utf8_prefix + code_block)
-                res_code, res_out, res_err = run_cmd([sys.executable, scratch_file], cwd=repo_dir)
+
+                res_code, res_out, res_err = run_cmd([sys.executable, scratch_file], cwd=repo_dir, timeout=40)
                 try:
                     os.remove(scratch_file)
                 except Exception:
@@ -248,13 +292,20 @@ def execute_dev_task(task):
                 has_error = any(kw in out_lower for kw in ["no such column", "operationalerror", "traceback", "exception:", "ошибка при работе с базой", "syntaxerror"])
 
                 if res_code != 0 or has_error:
-                    clean_err = res_err.strip() or res_out.strip() or "Неизвестная ошибка выполнения"
-                    raise Exception(f"Ошибка выполнения сгенерированного кода: {clean_err}")
+                    last_error = res_err.strip() or res_out.strip() or "Команда завершилась с ненулевым кодом"
+                    log(f"❌ Attempt #{attempt} failed with error: {last_error[:150]}")
+                    continue
 
+                # SUCCESS!
+                execution_succeeded = True
                 files_modified.append("agency.db")
-                summary = f"{res_out.strip() if res_out else 'Изменения успешно применены ИИ-агентом.'}".replace('\ufffd', '')
-            else:
-                raise Exception(f"LLM не смог сгенерировать исполняемый план: {err or ai_resp[:100]}")
+                heal_note = f" (автоматически выявлена и устранена ошибка на шаге {attempt})" if attempt > 1 else ""
+                summary = f"{res_out.strip() if res_out else 'Изменения успешно применены ИИ-агентом.'}{heal_note}".replace('\ufffd', '')
+                log(f"✅ Code execution succeeded on attempt #{attempt}!")
+                break
+
+            if not execution_succeeded:
+                raise Exception(f"Ошибка выполнения после {MAX_HEAL_ATTEMPTS} попыток авто-исправления: {last_error}")
 
         # 6. Fallback when no key is configured
         else:
@@ -348,6 +399,15 @@ def poll_and_execute():
                         # Avoid duplicates if already completed locally
                         execute_dev_task(t)
             except Exception:
+                pass
+
+            # 3. Check continuous autopilot (runs when owner is away > 1h or sleeping)
+            try:
+                import autopilot_engine
+                ap_res = autopilot_engine.run_autopilot_tick()
+                if ap_res.get("status") == "ok":
+                    log(f"🌙 [Autopilot] Executed step: {ap_res.get('action')}")
+            except Exception as e:
                 pass
 
         except Exception as e:

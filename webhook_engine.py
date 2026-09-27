@@ -291,7 +291,7 @@ def get_persistent_menu(is_admin=False):
                 [{"text": "💡 Гипотезы (Совет Директоров)"}, {"text": "📋 Задачи на утверждение"}],
                 [{"text": "📅 Журнал гипотез (по дням)"}, {"text": "👑 Дашборд Собственника (P&L)"}],
                 [{"text": "📊 CRM Воронка Лидов"}, {"text": "🎯 Сбор базы лидов"}],
-                [{"text": "💻 Dev Задачи (Автономный мост)"}, {"text": "🔑 Настройки API & Ключи"}]
+                [{"text": "🌙 Автопилот 24/7"}, {"text": "💻 Dev Задачи"}, {"text": "🔑 Настройки API"}]
             ],
             "resize_keyboard": True,
             "is_persistent": True
@@ -546,11 +546,43 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
         else:
             is_admin = (user_id_str == str(saved_admin))
 
+        if is_admin:
+            try:
+                import autopilot_engine
+                digest = autopilot_engine.record_user_activity(chat_id)
+                if digest:
+                    send_telegram_message(chat_id, digest)
+            except Exception as e:
+                print(f"Error checking autopilot activity: {e}")
+
         # Check if Owner is submitting edits for a specific hypothesis
         awaiting_edit_id = user_states.get(chat_id, {}).pop("awaiting_edit_init_id", None)
         if awaiting_edit_id:
             import executive_ai_engine
             executive_ai_engine.apply_owner_edits_to_hypothesis(awaiting_edit_id, text, chat_id)
+            return
+
+        # Autopilot Command / Status / Toggle
+        if is_admin and (text.startswith("/autopilot") or "автопилот" in text.lower()):
+            import autopilot_engine
+            parts = text.split()
+            if len(parts) > 1:
+                subcmd = parts[1].lower()
+                if subcmd in ["on", "start", "вкл", "1"]:
+                    db.set_setting(autopilot_engine.KEY_ENABLED, "true")
+                    send_telegram_message(chat_id, "✅ **Ночной Автопилот 24/7 ВКЛЮЧЕН**.\n\nКогда вы не пишете боту более 1 часа (или ночью), система будет автономно выполнять задачи из плана.")
+                    return
+                elif subcmd in ["off", "stop", "выкл", "0"]:
+                    db.set_setting(autopilot_engine.KEY_ENABLED, "false")
+                    send_telegram_message(chat_id, "⏸ **Автопилот ПРИОСТАНОВЛЕН**.")
+                    return
+                elif subcmd in ["test", "run", "тест"]:
+                    db.set_setting(autopilot_engine.KEY_LAST_USER_TIME, "0") # force away
+                    res = autopilot_engine.run_autopilot_tick()
+                    send_telegram_message(chat_id, f"🚀 **Тестовый шаг автопилота выполнен!**\n\nРезультат: {res.get('action') or res.get('reason')}")
+                    return
+            status_text = autopilot_engine.get_autopilot_status_text()
+            send_telegram_message(chat_id, status_text)
             return
 
         # Admin Command to set Gemini API key directly from Telegram!
