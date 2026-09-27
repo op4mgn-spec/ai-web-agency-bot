@@ -225,6 +225,17 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "deleted_count": count}, ensure_ascii=False).encode("utf-8"))
             return
 
+        # API: Resend Pending Approvals to Owner in Telegram
+        elif path == "/api/resend_approvals":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            import executive_ai_engine
+            count = executive_ai_engine.resend_pending_approvals_to_owner(246189250)
+            self.wfile.write(json.dumps({"status": "ok", "count": count}, ensure_ascii=False).encode("utf-8"))
+            return
+
+
 
         # API: Owner Executive Dashboard Combined Data
         elif path == "/api/owner_dashboard":
