@@ -54,6 +54,25 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(f.read())
             return
 
+        # Serve Owner Executive Dashboard
+        elif path == "/owner" or path == "/executive":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            owner_path = os.path.join(DIRECTORY, "owner_dashboard.html")
+            with open(owner_path, "rb") as f:
+                self.wfile.write(f.read())
+            return
+
+        # API: Owner Executive Dashboard Combined Data
+        elif path == "/api/owner_dashboard":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            data = db.get_owner_dashboard_data()
+            self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+            return
+
         # API: CRM Data (Leads + A/B Stats)
         elif path == "/api/crm_data":
             self.send_response(200)
@@ -246,6 +265,25 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
 
             db.update_lead_status(int(telegram_id), new_status)
             self.wfile.write(json.dumps({"status": "ok", "new_status": new_status}).encode('utf-8'))
+            return
+
+        # API: Update Departmental Initiative Status from Owner Dashboard
+        elif path == "/api/update_initiative_status":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            init_id = body.get('id')
+            new_status = body.get('status')
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+
+            if not init_id or not new_status:
+                self.wfile.write(json.dumps({"error": "Missing args"}).encode('utf-8'))
+                return
+
+            db.update_initiative_status(int(init_id), new_status)
+            self.wfile.write(json.dumps({"status": "ok", "id": init_id, "new_status": new_status}).encode('utf-8'))
             return
 
         self.send_response(404)

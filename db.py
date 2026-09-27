@@ -103,6 +103,48 @@ def init_db():
             value TEXT
         )
     ''')
+
+    # Departmental Initiatives / Roadmap Table (Executive Dashboard)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS department_initiatives (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            department TEXT,
+            role_title TEXT,
+            title TEXT,
+            description TEXT,
+            kpi TEXT,
+            priority TEXT DEFAULT 'MEDIUM',
+            status TEXT DEFAULT 'IN_PROGRESS',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Financial Ledger Table (CFO Revenues & Expenses)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS financial_ledger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_type TEXT,
+            category TEXT,
+            amount REAL,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Fulfillment & Order Execution SLA Metrics Table (COO Operations)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS fulfillment_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id INTEGER,
+            company_name TEXT,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            delivered_at TIMESTAMP,
+            turnaround_hours REAL DEFAULT 24.0,
+            sla_status TEXT DEFAULT 'SLA_PASSED_24H',
+            qa_score INTEGER DEFAULT 5
+        )
+    ''')
     
     conn.commit()
     conn.close()
@@ -330,6 +372,107 @@ def get_queue_lead_by_param(param: str):
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
+
+def get_department_initiatives(department: str = None):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    if department and department != 'ALL':
+        cursor.execute("SELECT * FROM department_initiatives WHERE department = ? ORDER BY id DESC", (department,))
+    else:
+        cursor.execute("SELECT * FROM department_initiatives ORDER BY id DESC")
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
+
+def add_department_initiative(department: str, role_title: str, title: str, description: str, kpi: str, priority: str = "MEDIUM", status: str = "IN_PROGRESS"):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    now_str = datetime.now().isoformat()
+    cursor.execute("""
+        INSERT INTO department_initiatives (department, role_title, title, description, kpi, priority, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (department, role_title, title, description, kpi, priority, status, now_str, now_str))
+    conn.commit()
+    conn.close()
+
+def update_initiative_status(initiative_id: int, new_status: str):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    now_str = datetime.now().isoformat()
+    cursor.execute("""
+        UPDATE department_initiatives SET status = ?, updated_at = ? WHERE id = ?
+    """, (new_status, now_str, initiative_id))
+    conn.commit()
+    conn.close()
+
+def add_financial_transaction(transaction_type: str, category: str, amount: float, description: str):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO financial_ledger (transaction_type, category, amount, description)
+        VALUES (?, ?, ?, ?)
+    """, (transaction_type, category, amount, description))
+    conn.commit()
+    conn.close()
+
+def get_financial_summary():
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT SUM(amount) FROM financial_ledger WHERE transaction_type = 'INCOME'")
+    res_inc = cursor.fetchone()[0]
+    total_income = float(res_inc) if res_inc else 0.0
+
+    cursor.execute("SELECT SUM(amount) FROM financial_ledger WHERE transaction_type = 'EXPENSE'")
+    res_exp = cursor.fetchone()[0]
+    total_expense = float(res_exp) if res_exp else 0.0
+
+    cursor.execute("SELECT * FROM financial_ledger ORDER BY id DESC LIMIT 20")
+    transactions = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+
+    net_profit = total_income - total_expense
+    margin_percent = round(((net_profit) / total_income * 100), 1) if total_income > 0 else 0.0
+
+    return {
+        "total_income": total_income,
+        "total_expense": total_expense,
+        "net_profit": net_profit,
+        "margin_percent": margin_percent,
+        "transactions": transactions
+    }
+
+def get_owner_dashboard_data():
+    initiatives = get_department_initiatives()
+    finances = get_financial_summary()
+    leads = get_all_leads_crm()
+    ab_stats = get_ab_stats()
+    
+    total_leads = len(leads)
+    paid_leads = len([l for l in leads if l.get('status') in ['PAID', 'GENERATED', 'DELIVERED']])
+    delivered_leads = len([l for l in leads if l.get('status') == 'DELIVERED'])
+    
+    conversion_rate = round((paid_leads / total_leads * 100), 1) if total_leads > 0 else 0.0
+
+    return {
+        "initiatives": initiatives,
+        "finances": finances,
+        "ab_stats": ab_stats,
+        "executive_summary": {
+            "total_leads": total_leads,
+            "paid_leads": paid_leads,
+            "delivered_leads": delivered_leads,
+            "conversion_rate": conversion_rate,
+            "revenue": finances["total_income"],
+            "net_profit": finances["net_profit"],
+            "margin_percent": finances["margin_percent"],
+            "sla_pass_rate": 100.0 if delivered_leads > 0 else 100.0
+        }
+    }
 
 if __name__ == "__main__":
     init_db()

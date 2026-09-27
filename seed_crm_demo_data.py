@@ -1,11 +1,13 @@
 import os
 import sqlite3
 import json
+import db
 from datetime import datetime, timedelta
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "agency.db")
 
 def seed_demo_data():
+    db.init_db()
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -245,9 +247,50 @@ def seed_demo_data():
                 VALUES (?, ?, ?, ?, ?)
             """, (lead["telegram_id"], sender, text, lead["bot_variant"], msg_time))
 
+    # Seed Executive Departmental Initiatives / Roadmap
+    cursor.execute("DELETE FROM department_initiatives")
+    initiatives = [
+        ("SALES", "РОП (Руководитель Отдела Продаж)", "A/B Тестирование 4 персон ИИ-продавцов", "Сравнение конверсий Консультанта, Прямых Продаж, Демо-Специалиста и Архитектора", "Рост конверсии до 25%", "HIGH", "IN_PROGRESS"),
+        ("SALES", "РОП (Руководитель Отдела Продаж)", "Авто-обработка возражений по цене и предоплате", "Отработка частых сомнений клиентов и дожим брошенных брифов", "Дожим 20% отказников", "HIGH", "IN_PROGRESS"),
+        ("SALES", "РОП (Руководитель Отдела Продаж)", "Сквозная интеграция с картами Яндекс/Google", "Парсинг малого бизнеса и автоматический аутрич", "100 целевых лидов/день", "MEDIUM", "COMPLETED"),
+        
+        ("PRODUCT", "CPO (Продукт-Менеджер)", "Голосовой ИИ-ассистент (Распознавание речи)", "Нативная интеграция с мультимодальным Gemini API для обработки голосовых .ogg", "Точность речи >98%", "HIGH", "COMPLETED"),
+        ("PRODUCT", "CPO (Продукт-Менеджер)", "Каталог 6 нишевых интерактивных демо-сайтов", "Создание готовых превью для автосервисов, клининга, стоматологий, ремонта, юристов, СПА", "Конверсия в бриф >40%", "HIGH", "COMPLETED"),
+        ("PRODUCT", "CPO (Продукт-Менеджер)", "Инструктор по привязке кастомных доменов & SSL", "Пошаговая инструкция для клиентов по подключению собственных доменов", "Привязка за 5 минут", "MEDIUM", "IN_PROGRESS"),
+
+        ("FINANCE", "CFO (Финансовый Директор)", "Юнит-экономика и маржинальность проектов", "Учет выручки 9 900 руб/сайт против расходов на API Gemini и Render хостинг", "Маржа >85%", "HIGH", "IN_PROGRESS"),
+        ("FINANCE", "CFO (Финансовый Директор)", "Промокоды и тарифные пакеты поддержки", "Внедрение промокодов (START2026) и ежемесячных пакетов техподдержки", "Рост LTV на +30%", "MEDIUM", "IN_PROGRESS"),
+
+        ("FULFILLMENT", "COO (Операционный Директор)", "Контроль 24-часового SLA и QA проверки арт-директора", "Обязательное утверждение верстки основателем студии перед отправкой клиенту", "100% сдача в SLA", "HIGH", "IN_PROGRESS"),
+        ("FULFILLMENT", "COO (Операционный Директор)", "Мгновенный генератор продающего HTML-кода", "ИИ-генерация блоков сайта с адаптивной мобильной версией и кнопками записи", "Сборка <15 сек", "HIGH", "COMPLETED")
+    ]
+
+    for dept, role, title, desc, kpi, prio, stat in initiatives:
+        cursor.execute("""
+            INSERT INTO department_initiatives (department, role_title, title, description, kpi, priority, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (dept, role, title, desc, kpi, prio, stat))
+
+    # Seed Financial Ledger
+    cursor.execute("DELETE FROM financial_ledger")
+    transactions = [
+        ("INCOME", "CLIENT_PAYMENT", 9900.0, "Оплата за сайт: АвтоТехЦентр Романов"),
+        ("INCOME", "CLIENT_PAYMENT", 9900.0, "Оплата за сайт: Дента Плюс"),
+        ("INCOME", "CLIENT_PAYMENT", 9900.0, "Оплата за сайт: Luxe Beauty SPA"),
+        ("EXPENSE", "RENDER_HOSTING", 1200.0, "Облачный хостинг Render Web Service"),
+        ("EXPENSE", "API_GEMINI", 850.0, "Запросы к Google Gemini API (Распознавание речи + Генерация)"),
+        ("EXPENSE", "PROXIES", 450.0, "Прокси-сервера для парсинга Яндекс Карт")
+    ]
+
+    for t_type, cat, amt, desc in transactions:
+        cursor.execute("""
+            INSERT INTO financial_ledger (transaction_type, category, amount, description)
+            VALUES (?, ?, ?, ?)
+        """, (t_type, cat, amt, desc))
+
     conn.commit()
     conn.close()
-    print("[+] Successfully seeded 8 rich demo leads with complete greetings across ALL 7 CRM funnel stages!")
+    print("[+] Successfully seeded 8 rich demo leads, departmental initiatives, and financial ledger data!")
 
 if __name__ == "__main__":
     seed_demo_data()

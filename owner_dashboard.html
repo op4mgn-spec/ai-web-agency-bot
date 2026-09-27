@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Web Agency | Дашборд Собственника (Executive Command Center)</title>
+    <style>
+        :root {
+            --bg-dark: #0b1120;
+            --card-bg: #1e293b;
+            --border: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', system-ui, sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-main); min-height: 100vh; padding: 20px; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 25px; }
+        .logo { font-size: 22px; font-weight: bold; color: #60a5fa; display: flex; align-items: center; gap: 10px; }
+        .nav-links { display: flex; gap: 12px; }
+        .btn-nav { background: var(--card-bg); color: white; border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; font-size: 13px; text-decoration: none; cursor: pointer; transition: 0.2s; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-nav:hover { border-color: var(--primary); background: #334155; }
+        .btn-nav.primary { background: var(--primary); border-color: var(--primary); }
+
+        .exec-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 30px; }
+        .exec-card { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+        .exec-card h4 { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; }
+        .exec-card .val { font-size: 28px; font-weight: bold; color: var(--text-main); }
+        .exec-card .sub { font-size: 12px; margin-top: 6px; color: var(--text-muted); }
+        .exec-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--primary); }
+        .exec-card.profit::before { background: var(--success); }
+        .exec-card.conv::before { background: var(--purple); }
+        .exec-card.sla::before { background: var(--warning); }
+
+        .section-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; color: var(--text-main); }
+        
+        .dept-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 35px; }
+        .dept-col { background: #162032; padding: 16px; border-radius: 14px; border: 1px solid var(--border); }
+        .dept-header { font-size: 15px; font-weight: bold; padding-bottom: 10px; margin-bottom: 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .dept-role { font-size: 11px; padding: 3px 8px; border-radius: 12px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-weight: 500; }
+
+        .init-card { background: var(--card-bg); padding: 14px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 12px; transition: 0.2s; }
+        .init-card:hover { border-color: var(--primary); }
+        .init-title { font-weight: bold; font-size: 14px; margin-bottom: 6px; }
+        .init-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; line-height: 1.4; }
+        .init-kpi { font-size: 11px; color: var(--success); background: rgba(16, 185, 129, 0.1); padding: 4px 8px; border-radius: 6px; margin-bottom: 8px; font-weight: 500; display: inline-block; }
+        .init-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+        .prio-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+        .prio-HIGH { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .prio-MEDIUM { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+
+        .status-select { background: #0f172a; color: white; border: 1px solid var(--border); padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+
+        .fin-section { background: #162032; padding: 20px; border-radius: 14px; border: 1px solid var(--border); }
+        .table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        .table th, .table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+        .table th { color: var(--text-muted); font-weight: 600; font-size: 12px; }
+        .type-INCOME { color: var(--success); font-weight: bold; }
+        .type-EXPENSE { color: var(--danger); font-weight: bold; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">👑 AI Web Agency | Дашборд Собственника</div>
+        <div class="nav-links">
+            <a href="/crm" class="btn-nav primary">📊 Воронка Лидов (CRM)</a>
+            <button onclick="loadOwnerDashboard()" class="btn-nav">🔄 Обновить данные</button>
+        </div>
+    </header>
+
+    <div class="exec-bar" id="execBar">
+        <!-- Loaded via JS -->
+    </div>
+
+    <div class="section-title">
+        <span>📋 Исполнительный План по Отделам (Задачи & Инициативы)</span>
+        <span style="font-size: 13px; font-weight: normal; color: var(--text-muted);">Разбивка по руководителям направлений</span>
+    </div>
+
+    <div class="dept-grid">
+        <div class="dept-col">
+            <div class="dept-header">
+                <span>📈 Отдел Продаж</span>
+                <span class="dept-role">РОП</span>
+            </div>
+            <div id="dept-SALES"></div>
+        </div>
+
+        <div class="dept-col">
+            <div class="dept-header">
+                <span>🚀 Продукт & IT</span>
+                <span class="dept-role">CPO</span>
+            </div>
+            <div id="dept-PRODUCT"></div>
+        </div>
+
+        <div class="dept-col">
+            <div class="dept-header">
+                <span>💰 Финансы & Маржа</span>
+                <span class="dept-role">CFO</span>
+            </div>
+            <div id="dept-FINANCE"></div>
+        </div>
+
+        <div class="dept-col">
+            <div class="dept-header">
+                <span>🛠 Исполнение & QA</span>
+                <span class="dept-role">COO</span>
+            </div>
+            <div id="dept-FULFILLMENT"></div>
+        </div>
+    </div>
+
+    <div class="fin-section">
+        <div class="section-title" style="margin-bottom: 5px;">
+            <span>💰 Финансовый Отчет & P&L (Доходы и Расходы)</span>
+            <span style="font-size: 13px; font-weight: normal; color: var(--success);" id="finMarginTag">Маржа: 0%</span>
+        </div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Тип</th>
+                    <th>Категория</th>
+                    <th>Описание</th>
+                    <th>Сумма (руб)</th>
+                    <th>Дата</th>
+                </tr>
+            </thead>
+            <tbody id="finTableBody">
+                <!-- Loaded via JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadOwnerDashboard() {
+            try {
+                const res = await fetch('/api/owner_dashboard');
+                const data = await res.json();
+                renderExecutiveSummary(data.executive_summary);
+                renderInitiatives(data.initiatives);
+                renderFinances(data.finances);
+            } catch (err) {
+                console.error("Error loading Owner Dashboard:", err);
+            }
+        }
+
+        function renderExecutiveSummary(summary) {
+            const execBar = document.getElementById('execBar');
+            execBar.innerHTML = `
+                <div class="exec-card profit">
+                    <h4>Выручка (Общая)</h4>
+                    <div class="val">${summary.revenue.toLocaleString()} ₽</div>
+                    <div class="sub">Оплачено заказов: ${summary.paid_leads} шт</div>
+                </div>
+                <div class="exec-card profit">
+                    <h4>Чистая Прибыль</h4>
+                    <div class="val" style="color: var(--success);">${summary.net_profit.toLocaleString()} ₽</div>
+                    <div class="sub">Маржинальность: <strong>${summary.margin_percent}%</strong></div>
+                </div>
+                <div class="exec-card conv">
+                    <h4>Конверсия в Оплату</h4>
+                    <div class="val" style="color: var(--purple);">${summary.conversion_rate}%</div>
+                    <div class="sub">Всего лидов в базе: ${summary.total_leads}</div>
+                </div>
+                <div class="exec-card sla">
+                    <h4>Исполнение SLA (24ч)</h4>
+                    <div class="val" style="color: var(--warning);">${summary.sla_pass_rate}%</div>
+                    <div class="sub">Сдано проектов: ${summary.delivered_leads} шт</div>
+                </div>
+            `;
+        }
+
+        function renderInitiatives(initiatives) {
+            const depts = ['SALES', 'PRODUCT', 'FINANCE', 'FULFILLMENT'];
+            depts.forEach(d => {
+                const col = document.getElementById(`dept-${d}`);
+                if (col) col.innerHTML = '';
+            });
+
+            initiatives.forEach(item => {
+                const col = document.getElementById(`dept-${item.department}`);
+                if (!col) return;
+
+                const cardHtml = `
+                    <div class="init-card">
+                        <div class="init-title">${item.title}</div>
+                        <div class="init-desc">${item.description}</div>
+                        <div class="init-kpi">🎯 KPI: ${item.kpi}</div>
+                        <div class="init-footer">
+                            <span class="prio-tag prio-${item.priority}">${item.priority === 'HIGH' ? 'ВЫСОКИЙ' : 'СРЕДНИЙ'}</span>
+                            <select class="status-select" onchange="updateInitiativeStatus(${item.id}, this.value)">
+                                <option value="IN_PROGRESS" ${item.status === 'IN_PROGRESS' ? 'selected' : ''}>⏳ В работе</option>
+                                <option value="COMPLETED" ${item.status === 'COMPLETED' ? 'selected' : ''}>✅ Завершено</option>
+                                <option value="BACKLOG" ${item.status === 'BACKLOG' ? 'selected' : ''}>📋 Бэклог</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+                col.innerHTML += cardHtml;
+            });
+        }
+
+        function renderFinances(finances) {
+            document.getElementById('finMarginTag').innerText = `Маржинальность: ${finances.margin_percent}% | Чистая прибыль: ${finances.net_profit.toLocaleString()} ₽`;
+            const tbody = document.getElementById('finTableBody');
+            tbody.innerHTML = finances.transactions.map(t => `
+                <tr>
+                    <td class="type-${t.transaction_type}">${t.transaction_type === 'INCOME' ? '➕ Доход' : '➖ Расход'}</td>
+                    <td><code>${t.category}</code></td>
+                    <td>${t.description}</td>
+                    <td class="type-${t.transaction_type}">${t.transaction_type === 'INCOME' ? '+' : '-'}${t.amount.toLocaleString()} ₽</td>
+                    <td style="color: var(--text-muted); font-size: 11px;">${t.created_at ? t.created_at.split('T')[0] : ''}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function updateInitiativeStatus(id, newStatus) {
+            try {
+                await fetch('/api/update_initiative_status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id, status: newStatus })
+                });
+                await loadOwnerDashboard();
+            } catch (err) {
+                console.error("Error updating initiative status:", err);
+            }
+        }
+
+        loadOwnerDashboard();
+    </script>
+</body>
+</html>
