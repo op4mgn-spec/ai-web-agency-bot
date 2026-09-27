@@ -19,7 +19,8 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path
+        raw_path = parsed.path
+        path = raw_path.rstrip('/') or "/"
         query = urllib.parse.parse_qs(parsed.query)
 
         # Diagnostic endpoint: Tests Telegram API directly from cloud container!
@@ -37,15 +38,15 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Healthcheck / Keep-Alive Ping
-        elif path == "/ping" or path == "/health":
+        elif path in ["/ping", "/health"]:
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
             self.end_headers()
             self.wfile.write(b"OK")
             return
 
-        # Serve Web CRM Dashboard on homepage
-        elif path == "/" or path == "/crm":
+        # Serve Web CRM Dashboard on homepage or /crm
+        elif path in ["/", "/crm", "/admin", "/crm_dashboard", "/crm_dashboard.html"]:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -54,8 +55,8 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(f.read())
             return
 
-        # Serve Owner Executive Dashboard
-        elif path == "/owner" or path == "/executive":
+        # Serve Owner Executive Dashboard on /owner
+        elif path in ["/owner", "/executive", "/dashboard", "/owner_dashboard", "/owner_dashboard.html"]:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
