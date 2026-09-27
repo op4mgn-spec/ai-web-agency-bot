@@ -94,7 +94,15 @@
 
     <div class="kanban">
         <div class="column">
-            <div class="column-header">🆕 Новые <span class="badge" id="count-NEW">0</span></div>
+            <div class="column-header" style="color: #38bdf8;">📥 Собраны (База аутрича) <span class="badge" id="count-COLLECTED">0</span></div>
+            <div id="col-COLLECTED"></div>
+        </div>
+        <div class="column">
+            <div class="column-header" style="color: #a78bfa;">📨 Отправлен аутрич <span class="badge" id="count-OUTREACH_SENT">0</span></div>
+            <div id="col-OUTREACH_SENT"></div>
+        </div>
+        <div class="column">
+            <div class="column-header">🆕 Входящие в боте <span class="badge" id="count-NEW">0</span></div>
             <div id="col-NEW"></div>
         </div>
         <div class="column">
@@ -141,7 +149,9 @@
             <div class="action-toolbar">
                 <button class="action-btn pay" onclick="verifyPaymentCRM()">💳 Подтвердить оплату (9 900 руб)</button>
                 <select id="statusSelect" onchange="changeStatusCRM(this.value)" style="background: var(--card-bg); color: white; border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-size: 12px;">
-                    <option value="NEW">Этап: 🆕 Новый</option>
+                    <option value="COLLECTED">Этап: 📥 Собраны (База аутрича)</option>
+                    <option value="OUTREACH_SENT">Этап: 📨 Отправлен аутрич</option>
+                    <option value="NEW">Этап: 🆕 Входящий в боте</option>
                     <option value="INCOMPLETE_BRIEF">Этап: ⚠️ Бросил бриф</option>
                     <option value="REJECTED">Этап: 🛠 Отказ / Доработка</option>
                     <option value="ADMIN_NEGOTIATING">Этап: ✍️ Диалог с админом</option>
@@ -228,7 +238,7 @@
         }
 
         function renderKanban(leads) {
-            const cols = ['NEW', 'INCOMPLETE_BRIEF', 'REJECTED', 'WAITING_PAYMENT', 'PAID', 'GENERATED', 'DELIVERED', 'LOST'];
+            const cols = ['COLLECTED', 'OUTREACH_SENT', 'NEW', 'INCOMPLETE_BRIEF', 'REJECTED', 'WAITING_PAYMENT', 'PAID', 'GENERATED', 'DELIVERED', 'LOST'];
             cols.forEach(c => {
                 const colEl = document.getElementById(`col-${c}`);
                 if (colEl) colEl.innerHTML = '';
@@ -239,7 +249,11 @@
             const counts = {};
             leads.forEach(l => {
                 let status = l.status || 'NEW';
-                if (['BRIEFING', 'INCOMPLETE_BRIEF', 'BRIEF_RECOVERY_SENT', 'INCOMPLETE_RECOVERED_NOTIFIED'].includes(status)) {
+                if (['COLLECTED', 'PENDING', 'PARSED'].includes(status)) {
+                    status = 'COLLECTED';
+                } else if (['OUTREACH_SENT', 'SENT', 'CONTACTED'].includes(status)) {
+                    status = 'OUTREACH_SENT';
+                } else if (['BRIEFING', 'INCOMPLETE_BRIEF', 'BRIEF_RECOVERY_SENT', 'INCOMPLETE_RECOVERED_NOTIFIED'].includes(status)) {
                     status = 'INCOMPLETE_BRIEF';
                 } else if (['REJECTED', 'OBJECTION', 'NEED_ADMIN', 'ADMIN_NEGOTIATING'].includes(status)) {
                     status = 'REJECTED';
@@ -260,25 +274,31 @@
                 counts[status] = (counts[status] || 0) + 1;
 
                 let payTag = '';
-                if (['WAITING_PAYMENT'].includes(status)) {
+                if (status === 'COLLECTED') {
+                    payTag = '<div class="pay-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid #38bdf8;">📥 В очереди (Ещё не писали)</div>';
+                } else if (status === 'OUTREACH_SENT') {
+                    payTag = '<div class="pay-badge" style="background: rgba(167, 139, 250, 0.15); color: #a78bfa; border: 1px solid #a78bfa;">📨 Отправлен аутрич</div>';
+                } else if (['WAITING_PAYMENT'].includes(status)) {
                     payTag = '<div class="pay-badge pending">⏳ Счёт выставлен (не оплачен)</div>';
                 } else if (['PAID', 'GENERATED', 'DELIVERED'].includes(status)) {
                     payTag = '<div class="pay-badge paid">✅ 9 900 руб. Оплачено</div>';
                 }
 
+                const cardId = typeof l.telegram_id === 'string' ? `'${l.telegram_id}'` : l.telegram_id;
                 const cardHtml = `
-                    <div class="lead-card" onclick="openChat(${l.telegram_id}, '${(l.full_name || 'Клиент').replace(/'/g, "")}', '${l.bot_variant}', '${l.status}')">
+                    <div class="lead-card" onclick="openChat(${cardId}, '${(l.full_name || 'Клиент').replace(/'/g, "")}', '${l.bot_variant}', '${status}')">
                         <div class="lead-name">
                             <span>${l.full_name || 'Клиент'}</span>
-                            <span style="font-size: 11px; color: var(--text-muted);">@${l.username || 'id'+l.telegram_id}</span>
+                            <span style="font-size: 11px; color: var(--text-muted);">${l.username ? '@'+l.username : ''}</span>
                         </div>
                         <div class="lead-meta">
-                            <span class="variant-tag">${l.bot_variant}</span>
+                            <span class="variant-tag" style="${status === 'COLLECTED' ? 'background: #0284c7; color: white;' : ''}">${l.bot_variant}</span>
                         </div>
+                        ${l.site_url ? `<div style="font-size: 11px; color: #38bdf8; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">🌐 ${l.site_url}</div>` : ''}
                         ${l.brief_step > 0 && l.brief_step < 7 ? `<div class="incomplete-warning">⚠️ Бросил бриф на шаге ${l.brief_step}/7</div>` : ''}
-                        ${l.brief_data && l.brief_data !== '{}' ? `<div style="font-size: 11px; color: var(--success); margin-top: 4px;">✓ Бриф заполнен</div>` : ''}
+                        ${l.brief_data && l.brief_data !== '{}' && !l.is_queue ? `<div style="font-size: 11px; color: var(--success); margin-top: 4px;">✓ Бриф заполнен</div>` : ''}
                         ${payTag}
-                        ${l.feedback ? `<div style="font-size: 11px; color: ${status === 'LOST' ? '#f87171' : 'var(--warning)'}; margin-top: 4px; font-weight: 500;">💬 ${l.feedback}</div>` : ''}
+                        ${l.feedback && !l.site_url ? `<div style="font-size: 11px; color: ${status === 'LOST' ? '#f87171' : 'var(--warning)'}; margin-top: 4px; font-weight: 500;">💬 ${l.feedback}</div>` : ''}
                     </div>
                 `;
 
@@ -294,8 +314,9 @@
 
         async function openChat(telegramId, name, variant, status) {
             activeTelegramId = telegramId;
-            document.getElementById('modalTitle').innerText = `Диалог с ${name}`;
-            document.getElementById('modalMeta').innerText = `Telegram ID: ${telegramId} | Продавец: ${variant || 'Variant A'}`;
+            const isQueue = String(telegramId).startsWith('queue_');
+            document.getElementById('modalTitle').innerText = isQueue ? `Холодный лид: ${name}` : `Диалог с ${name}`;
+            document.getElementById('modalMeta').innerText = isQueue ? `База парсера ID: ${telegramId} | Источник: Аутрич-модуль` : `Telegram ID: ${telegramId} | Продавец: ${variant || 'Variant A'}`;
             document.getElementById('statusSelect').value = status || 'NEW';
 
             const badge = document.getElementById('paymentStatusBadge');
@@ -303,13 +324,17 @@
                 badge.innerHTML = '<span style="color: var(--success);">✅ Оплата: Подтверждена (9 900 руб)</span>';
             } else if (status === 'WAITING_PAYMENT') {
                 badge.innerHTML = '<span style="color: var(--warning);">⏳ Оплата: Ожидает поступления</span>';
+            } else if (status === 'COLLECTED') {
+                badge.innerHTML = '<span style="color: #38bdf8;">📥 В очереди аутрича (ещё не писали)</span>';
+            } else if (status === 'OUTREACH_SENT') {
+                badge.innerHTML = '<span style="color: #a78bfa;">📨 Сообщение отправлено</span>';
             } else {
                 badge.innerHTML = '<span style="color: var(--text-muted);">💳 Оплата: Не совершалась</span>';
             }
 
             const modal = document.getElementById('chatModal');
             const chatBox = document.getElementById('chatBox');
-            chatBox.innerHTML = '<div style="color: var(--text-muted); text-align: center;">Загрузка диалога...</div>';
+            chatBox.innerHTML = '<div style="color: var(--text-muted); text-align: center;">Загрузка данных...</div>';
             modal.style.display = 'flex';
 
             await loadChatMessages();

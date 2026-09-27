@@ -254,6 +254,38 @@ def get_all_leads_crm():
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM leads ORDER BY updated_at DESC")
     rows = [dict(r) for r in cursor.fetchall()]
+
+    # Also load cold outreach leads from leads_queue
+    try:
+        cursor.execute("SELECT * FROM leads_queue ORDER BY id DESC")
+        queue_rows = [dict(r) for r in cursor.fetchall()]
+        for q in queue_rows:
+            q_status = q.get("status", "PENDING")
+            st = "COLLECTED" if q_status == "PENDING" else ("OUTREACH_SENT" if q_status == "SENT" else q_status)
+            rows.append({
+                "telegram_id": f"queue_{q['id']}",
+                "username": q.get("city") or "РФ",
+                "full_name": q.get("company_name") or "Лид из базы",
+                "status": st,
+                "bot_variant": "🎯 Сбор базы (Outreach)",
+                "site_url": q.get("target_url") or "",
+                "site_path": "",
+                "feedback": f"🌐 {q.get('target_url', '')} | 📞 {q.get('phone', '')}",
+                "created_at": q.get("created_at") or datetime.now().isoformat(),
+                "updated_at": q.get("created_at") or datetime.now().isoformat(),
+                "brief_step": 0,
+                "brief_data": json.dumps({
+                    "target_url": q.get("target_url"),
+                    "phone": q.get("phone"),
+                    "city": q.get("city"),
+                    "tz": f"UTC+{q.get('timezone_offset', 3)}"
+                }, ensure_ascii=False),
+                "is_queue": True,
+                "queue_id": q["id"]
+            })
+    except Exception as e:
+        print(f"Error merging queue leads into CRM: {e}")
+
     conn.close()
     return rows
 
@@ -352,6 +384,15 @@ def update_queue_status(queue_id: int, status: str, error_message: str = ""):
     conn.commit()
     conn.close()
 
+def get_queue_lead_by_id(queue_id: int):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM leads_queue WHERE id = ?", (queue_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
 def get_incomplete_brief_leads():
     init_db()
     conn = get_connection()
@@ -426,15 +467,15 @@ def add_department_initiative(department: str, role_title: str, title: str, desc
     conn.commit()
     conn.close()
 
-def add_department_initiative_with_approval(department: str, role_title: str, title: str, description: str, kpi: str, hypothesis_impact: str = "", priority: str = "HIGH", approval_status: str = "PENDING_APPROVAL"):
+def add_department_initiative_with_approval(department: str, role_title: str, title: str, description: str, kpi: str, hypothesis_impact: str = "", priority: str = "HIGH", approval_status: str = "PENDING_APPROVAL", status: str = "BACKLOG"):
     init_db()
     conn = get_connection()
     cursor = conn.cursor()
     now_str = datetime.now().isoformat()
     cursor.execute("""
         INSERT INTO department_initiatives (department, role_title, title, description, kpi, priority, status, approval_status, hypothesis_impact, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'BACKLOG', ?, ?, ?, ?)
-    """, (department, role_title, title, description, kpi, priority, approval_status, hypothesis_impact, now_str, now_str))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (department, role_title, title, description, kpi, priority, status, approval_status, hypothesis_impact, now_str, now_str))
     init_id = cursor.lastrowid
     conn.commit()
     conn.close()

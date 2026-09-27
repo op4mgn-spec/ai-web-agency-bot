@@ -297,7 +297,19 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             messages = []
             if telegram_id:
                 try:
-                    messages = db.get_lead_messages(int(telegram_id))
+                    if str(telegram_id).startswith("queue_"):
+                        q_id = int(str(telegram_id).replace("queue_", ""))
+                        q_lead = db.get_queue_lead_by_id(q_id)
+                        if q_lead:
+                            messages = [
+                                {
+                                    "sender": "BOT",
+                                    "bot_variant": "🎯 Outreach Engine",
+                                    "text": f"📥 Лид собран парсером из открытых источников.\n\n🏢 Компания: {q_lead.get('company_name', '')}\n🌐 Сайт / форма: {q_lead.get('target_url', '')}\n📞 Телефон: {q_lead.get('phone', '')}\n📍 Город: {q_lead.get('city', '')} (UTC+{q_lead.get('timezone_offset', 3)})\n\n🕒 Статус: Этому клиенту мы ещё не писали (находится в очереди на отправку КП)."
+                                }
+                            ]
+                    else:
+                        messages = db.get_lead_messages(int(telegram_id))
                 except Exception as e:
                     print(f"Error fetching chat history: {e}")
             self.wfile.write(json.dumps(messages, ensure_ascii=False).encode("utf-8"))
@@ -413,6 +425,13 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "Missing telegram_id or text"}).encode('utf-8'))
                 return
 
+            if str(telegram_id).startswith("queue_"):
+                q_id = int(str(telegram_id).replace("queue_", ""))
+                db.update_queue_status(q_id, "SENT")
+                res_data = {"status": "ok", "message": "Лид переведен в статус 'Отправлен аутрич'!"}
+                self.wfile.write(json.dumps(res_data, ensure_ascii=False).encode('utf-8'))
+                return
+
             lead = db.get_or_create_lead(int(telegram_id))
             bot_variant = lead.get('bot_variant', 'Variant A (Консультант)')
 
@@ -469,7 +488,12 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "Missing args"}).encode('utf-8'))
                 return
 
-            db.update_lead_status(int(telegram_id), new_status)
+            if str(telegram_id).startswith("queue_"):
+                q_id = int(str(telegram_id).replace("queue_", ""))
+                q_status = "PENDING" if new_status == "COLLECTED" else ("SENT" if new_status == "OUTREACH_SENT" else new_status)
+                db.update_queue_status(q_id, q_status)
+            else:
+                db.update_lead_status(int(telegram_id), new_status)
             self.wfile.write(json.dumps({"status": "ok", "new_status": new_status}).encode('utf-8'))
             return
 
