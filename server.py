@@ -38,11 +38,72 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
                     "getMe": r_me,
                     "getWebhookInfo": r_wh,
                     "admin_id": admin_id,
+                    "last_received_update": db.get_setting("LAST_RECEIVED_UPDATE"),
+                    "last_process_error": db.get_setting("LAST_PROCESS_ERROR"),
+                    "last_send_result": db.get_setting("LAST_TELEGRAM_SEND_RESULT"),
                     "recent_leads": recent_leads,
                     "total_leads": len(all_leads),
                     "RENDER_EXTERNAL_URL": os.getenv("RENDER_EXTERNAL_URL")
                 }
                 self.wfile.write(json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8"))
+            except Exception as e:
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # Fetch pending updates from Telegram queue directly without dropping
+        elif path == "/check-updates":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            try:
+                base_url = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
+                wh_url = f"{base_url.rstrip('/')}/webhook"
+                
+                # 1. Temporarily delete webhook without dropping updates
+                r_del = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=false", timeout=10).json()
+                
+                # 2. Get updates from Telegram
+                r_upd = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates?limit=50", timeout=10).json()
+                
+                # 3. Process any found updates immediately
+                updates = r_upd.get("result", [])
+                processed = []
+                for upd in updates:
+                    threading.Thread(target=webhook_engine.process_telegram_update, args=(upd,), daemon=True).start()
+                    processed.append(upd.get("update_id"))
+                
+                # 4. Re-enable webhook with all allowed updates
+                r_wh = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook", json={
+                    "url": wh_url,
+                    "drop_pending_updates": False,
+                    "allowed_updates": ["message", "edited_message", "callback_query", "channel_post", "edited_channel_post"]
+                }, timeout=10).json()
+                
+                res = {
+                    "deleteWebhook": r_del,
+                    "updates_found": len(updates),
+                    "updates": updates,
+                    "processed_update_ids": processed,
+                    "restoreWebhook": r_wh
+                }
+                self.wfile.write(json.dumps(res, ensure_ascii=False, indent=2).encode("utf-8"))
+            except Exception as e:
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # Direct test message send endpoint: /send-msg?chat_id=...&text=...
+        elif path.startswith("/send-msg"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            try:
+                chat_id = query.get("chat_id", [None])[0]
+                text = query.get("text", ["👑 Проверка связи с Собственником!"])[0]
+                if not chat_id:
+                    self.wfile.write(json.dumps({"error": "Missing chat_id parameter"}).encode("utf-8"))
+                    return
+                res = webhook_engine.send_telegram_message(int(chat_id), text, reply_markup=webhook_engine.get_persistent_menu(True))
+                self.wfile.write(json.dumps({"chat_id": chat_id, "result": res}, ensure_ascii=False, indent=2).encode("utf-8"))
             except Exception as e:
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
@@ -55,7 +116,11 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 base_url = os.getenv("RENDER_EXTERNAL_URL") or "https://ai-web-agency-bot.onrender.com"
                 wh_url = f"{base_url.rstrip('/')}/webhook"
-                r_wh = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook", json={"url": wh_url, "drop_pending_updates": True}, timeout=10).json()
+                r_wh = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook", json={
+                    "url": wh_url,
+                    "drop_pending_updates": False,
+                    "allowed_updates": ["message", "edited_message", "callback_query", "channel_post", "edited_channel_post"]
+                }, timeout=10).json()
                 
                 # Register built-in Telegram command menu [/]
                 cmd_payload = {

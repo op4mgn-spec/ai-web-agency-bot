@@ -94,21 +94,30 @@ def send_telegram_message(chat_id, text, reply_markup=None, parse_mode="Markdown
     if parse_mode:
         payload["parse_mode"] = parse_mode
     try:
-        r = requests.post(f"{API_URL}/sendMessage", json=payload, timeout=5)
+        r = requests.post(f"{API_URL}/sendMessage", json=payload, timeout=7)
         res = r.json()
         if not res.get("ok"):
             print(f"⚠️ Telegram API warning ({res.get('error_code')}): {res.get('description')}")
-            # Automatic fallback: if Markdown parse fails, send plain text immediately
-            if res.get("error_code") == 400 and "parse" in res.get("description", "").lower():
+            # Automatic fallback: if first attempt fails with 400, retry as plain text without Markdown
+            if res.get("error_code") == 400 and payload.get("parse_mode"):
                 payload.pop("parse_mode", None)
-                r_fallback = requests.post(f"{API_URL}/sendMessage", json=payload, timeout=5)
+                r_fallback = requests.post(f"{API_URL}/sendMessage", json=payload, timeout=7)
                 res = r_fallback.json()
+
+        try:
+            db.set_setting("LAST_TELEGRAM_SEND_RESULT", json.dumps({"to_chat": chat_id, "res": res, "text_preview": text[:100]}, ensure_ascii=False))
+        except Exception:
+            pass
 
         if text and str(chat_id).replace("-", "").isdigit():
             db.log_chat_message(int(chat_id), "BOT", text, bot_variant)
         return res
     except Exception as e:
         print(f"Error sending telegram message: {e}")
+        try:
+            db.set_setting("LAST_TELEGRAM_SEND_RESULT", json.dumps({"to_chat": chat_id, "error": str(e)}, ensure_ascii=False))
+        except Exception:
+            pass
         return None
 
 def answer_callback_query(callback_query_id):
@@ -221,7 +230,24 @@ def get_persistent_menu(is_admin=False):
 
 def process_telegram_update(update_data):
     global GEMINI_API_KEY, ADMIN_TELEGRAM_ID
-    db.init_db()
+    try:
+        db.init_db()
+        try:
+            db.set_setting("LAST_RECEIVED_UPDATE", json.dumps(update_data, ensure_ascii=False))
+        except Exception:
+            pass
+        _do_process_telegram_update(update_data)
+    except Exception as e:
+        import traceback
+        err_str = f"Error processing telegram update: {e}\n{traceback.format_exc()}"
+        print(err_str)
+        try:
+            db.set_setting("LAST_PROCESS_ERROR", err_str)
+        except Exception:
+            pass
+
+def _do_process_telegram_update(update_data):
+    global GEMINI_API_KEY, ADMIN_TELEGRAM_ID
 
     # Handle Callback Queries (Button Clicks)
     if "callback_query" in update_data:
