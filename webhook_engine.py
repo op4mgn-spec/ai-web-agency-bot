@@ -3,6 +3,8 @@ import json
 import logging
 import base64
 import requests
+import re
+from datetime import datetime, timedelta
 import db
 from generator import generate_website_html
 
@@ -185,6 +187,46 @@ def get_working_models(key):
     
     return ['gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite']
 
+def format_gemini_quota_error(error_str, error_data=None):
+    if not any(kw in error_str.lower() for kw in ["quota", "limit", "429", "resource_exhausted", "exceeded"]):
+        return error_str
+
+    retry_sec = None
+    m = re.search(r"retry\s+in\s+([0-9\.]+)\s*s", error_str, re.IGNORECASE)
+    if m:
+        try:
+            retry_sec = float(m.group(1))
+        except Exception:
+            pass
+
+    if retry_sec is None:
+        m2 = re.search(r"retry\s+after\s+([0-9\.]+)\s*s?", error_str, re.IGNORECASE)
+        if m2:
+            try:
+                retry_sec = float(m2.group(1))
+            except Exception:
+                pass
+
+    now = datetime.now()
+    if retry_sec is not None:
+        sec_int = int(round(retry_sec))
+        reset_time = now + timedelta(seconds=retry_sec)
+        time_str = reset_time.strftime("%H:%M:%S")
+        return (
+            f"⏳ **Временный лимит запросов Google Gemini API (Free Tier: 20 запр/мин) исчерпан.**\n\n"
+            f"• **До обновления лимита**: ~{sec_int} сек.\n"
+            f"• **Точное время сброса лимита**: `{time_str}`\n\n"
+            f"Система автоматически возобновит выполнение после сброса таймера."
+        )
+    else:
+        reset_time = now + timedelta(seconds=60)
+        time_str = reset_time.strftime("%H:%M:%S")
+        return (
+            f"⏳ **Временный минутный лимит запросов Gemini API исчерпан.**\n\n"
+            f"• **До обновления лимита**: ~60 сек.\n"
+            f"• **Точное время сброса лимита**: `{time_str}`\n\n"
+            f"Минутная квота Free Tier (20 запросов/мин) обновляется каждую минуту."
+        )
 
 def safe_generate_ai(prompt, chat_id=None):
     global GEMINI_API_KEY, CACHED_WORKING_MODEL
@@ -219,6 +261,8 @@ def safe_generate_ai(prompt, chat_id=None):
 
     CACHED_WORKING_MODEL = None
     last_err = "; ".join(errors) if errors else "Неизвестная ошибка Gemini API"
+    if any(kw in last_err.lower() for kw in ["quota", "limit", "429", "resource_exhausted", "exceeded"]):
+        last_err = format_gemini_quota_error(last_err)
     return "", last_err
 
 DEMO_NICHES = {
@@ -246,8 +290,8 @@ def get_persistent_menu(is_admin=False):
             "keyboard": [
                 [{"text": "💡 Гипотезы (Совет Директоров)"}, {"text": "📋 Задачи на утверждение"}],
                 [{"text": "📅 Журнал гипотез (по дням)"}, {"text": "👑 Дашборд Собственника (P&L)"}],
-                [{"text": "📊 CRM Воронка Лидов"}, {"text": "💻 Dev Задачи (Автономный мост)"}],
-                [{"text": "🔑 Настройки API & Ключи"}]
+                [{"text": "📊 CRM Воронка Лидов"}, {"text": "🎯 Сбор базы лидов"}],
+                [{"text": "💻 Dev Задачи (Автономный мост)"}, {"text": "🔑 Настройки API & Ключи"}]
             ],
             "resize_keyboard": True,
             "is_persistent": True
@@ -628,6 +672,25 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
         if text.lower() in ["📅 журнал гипотез (по дням)", "📅 журнал гипотез", "журнал гипотез", "журнал", "хроника", "хроника побед", "/journal", "/history", "журнал реализованных гипотез"]:
             import executive_ai_engine
             executive_ai_engine.format_initiatives_journal_for_telegram(chat_id)
+            return
+
+        # Owner Persistent Button: Lead Base Collection & Test
+        if text.lower() in ["🎯 сбор базы лидов", "сбор базы лидов", "сбор базы", "собрать лидов", "/collect_leads", "/leads_collect", "/collect"] or text.startswith("/collect"):
+            import yandex_maps_parser
+            parts = text.split()
+            niche = parts[1] if len(parts) > 1 and not parts[1].startswith("/") else "автосервис"
+            city = parts[2] if len(parts) > 2 else "Москва"
+            count = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 5
+            
+            send_telegram_message(chat_id, f"🔍 **Запуск модуля сбора базы лидов**: ниша `{niche}`, город `{city}` (цель: {count} лидов)...")
+            res = yandex_maps_parser.collect_leads_for_outreach(niche=niche, city=city, count=count)
+            rep = yandex_maps_parser.format_lead_collection_report(res)
+            kbd = {"inline_keyboard": [
+                [{"text": "📊 Открыть CRM с очередью лидов", "url": "https://ai-web-agency-bot.onrender.com/crm"}],
+                [{"text": "🎯 Собрать еще лидов (Клининг)", "callback_data": "collect_cleaning"}],
+                [{"text": "🎯 Собрать еще лидов (Стоматология)", "callback_data": "collect_dental"}]
+            ]}
+            send_telegram_message(chat_id, rep, reply_markup=kbd)
             return
 
         # Owner Persistent Button: API Settings & Keys

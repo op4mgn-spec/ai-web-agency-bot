@@ -4,6 +4,8 @@ import time
 import json
 import subprocess
 import requests
+import re
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 load_dotenv()
 import db
@@ -211,6 +213,25 @@ def execute_dev_task(task):
 - Не используй сторонние библиотеки, только стандартные модули Python и db / executive_ai_engine / sqlite3.
 """
             ai_resp, err = webhook_engine.safe_generate_ai(llm_prompt)
+            # If quota hit, check retry time and auto-wait with user notification!
+            if not ai_resp and err and any(kw in err.lower() for kw in ["quota", "limit", "429", "лимит", "retry"]):
+                m = re.search(r"(\d+(?:\.\d+)?)\s*сек", err) or re.search(r"retry\s+in\s+([0-9\.]+)\s*s", err, re.IGNORECASE)
+                retry_sec = float(m.group(1)) if m else 55.0
+                if retry_sec <= 70:
+                    reset_time_str = (datetime.now() + timedelta(seconds=retry_sec)).strftime('%H:%M:%S')
+                    log(f"⏳ Quota limit exceeded. Auto-waiting {retry_sec:.1f}s until {reset_time_str}...")
+                    if chat_id:
+                        status_msg = (
+                            f"⏳ **Временный минутный лимит Gemini API (20 запр/мин)**.\n\n"
+                            f"• Ожидание сброса лимита: **~{int(round(retry_sec))} сек**.\n"
+                            f"• Время авто-возобновления: `{reset_time_str}`\n\n"
+                            f"🤖 Воркер автоматически продолжит выполнение задачи #{task_id} после сброса таймера!"
+                        )
+                        webhook_engine.send_telegram_message(int(chat_id), status_msg)
+                    time.sleep(retry_sec + 2)
+                    log("🔄 Retrying AI generation after waiting for quota reset...")
+                    ai_resp, err = webhook_engine.safe_generate_ai(llm_prompt)
+
             if ai_resp and "```python" in ai_resp:
                 code_block = ai_resp.split("```python")[1].split("```")[0].strip()
                 scratch_file = os.path.join(repo_dir, f"_auto_exec_{task_id}.py")
