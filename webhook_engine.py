@@ -156,12 +156,22 @@ def get_working_models(key):
                 if "generateContent" in methods:
                     valid_models.append(name)
             if valid_models:
-                print(f"✅ Discovered valid Gemini models for key: {valid_models}")
-                return valid_models
+                preferred = [
+                    'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-latest', 
+                    'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash',
+                    'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'
+                ]
+                ordered = [m for m in preferred if m in valid_models]
+                for m in valid_models:
+                    if m not in ordered:
+                        ordered.append(m)
+                print(f"[+] Discovered valid Gemini models: {ordered}")
+                return ordered
     except Exception as e:
         print(f"Error querying ListModels: {e}")
     
-    return ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-2.5-flash']
+    return ['gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite']
+
 
 def safe_generate_ai(prompt, chat_id=None):
     global GEMINI_API_KEY, CACHED_WORKING_MODEL
@@ -474,8 +484,8 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
             parts = text.split(maxsplit=1)
             if len(parts) > 1:
                 new_key = parts[1].strip()
-                if not new_key.startswith("AIza"):
-                    send_telegram_message(chat_id, "⚠️ **Ошибка**: Ключ Gemini API должен начинаться с `AIza...`\nСкопируйте ключ из Google AI Studio: https://aistudio.google.com/app/apikey")
+                if len(new_key) < 15:
+                    send_telegram_message(chat_id, "⚠️ **Ошибка**: Слишком короткий ключ. Скопируйте ключ из Google AI Studio: https://aistudio.google.com/app/apikey")
                     return
 
                 ADMIN_TELEGRAM_ID = user_id_str
