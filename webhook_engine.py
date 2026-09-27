@@ -387,13 +387,15 @@ def process_telegram_update(update_data):
 
         db.log_chat_message(chat_id, "USER", text, bot_variant)
 
+        user_first_name = (user.get("first_name") or "").lower()
         user_username = (user.get("username") or "").lower().replace("@", "")
         user_id_str = str(chat_id)
 
         saved_admin = db.get_setting("ADMIN_TELEGRAM_ID")
+        is_owner_identity = (user_username == "bers1q") or ("евгений" in user_first_name) or ("evgen" in user_first_name)
         is_owner_cmd = any(text.startswith(cmd) for cmd in ["/start", "/owner", "/admin", "/hypothesis", "/claim", "/setadmin", "/setkey"]) or any(kw in text.lower() for kw in ["дашборд", "гипотез", "собственник"])
 
-        if not saved_admin or saved_admin in ["", "12345"] or user_username == "bers1q" or is_owner_cmd:
+        if not saved_admin or saved_admin in ["", "12345"] or is_owner_identity or is_owner_cmd:
             ADMIN_TELEGRAM_ID = user_id_str
             db.set_setting("ADMIN_TELEGRAM_ID", user_id_str)
             saved_admin = user_id_str
