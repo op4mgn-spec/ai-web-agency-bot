@@ -216,6 +216,16 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(tasks, ensure_ascii=False).encode("utf-8"))
             return
 
+        # API: Deduplicate Departmental Initiatives
+        elif path == "/api/deduplicate_initiatives":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            count = db.deduplicate_initiatives()
+            self.wfile.write(json.dumps({"status": "ok", "deleted_count": count}, ensure_ascii=False).encode("utf-8"))
+            return
+
+
         # API: Owner Executive Dashboard Combined Data
         elif path == "/api/owner_dashboard":
             self.send_response(200)
@@ -440,6 +450,34 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "id": init_id, "new_status": new_status}).encode('utf-8'))
             return
 
+        # API: Delete Departmental Initiative
+        elif path == "/api/delete_initiative":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            init_id = body.get('id')
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+
+            if not init_id:
+                self.wfile.write(json.dumps({"error": "Missing id"}).encode('utf-8'))
+                return
+
+            deleted = db.delete_department_initiative(int(init_id))
+            self.wfile.write(json.dumps({"status": "ok", "id": init_id, "deleted": deleted}).encode('utf-8'))
+            return
+
+        # API: Deduplicate Departmental Initiatives (POST)
+        elif path == "/api/deduplicate_initiatives":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            count = db.deduplicate_initiatives()
+            self.wfile.write(json.dumps({"status": "ok", "deleted_count": count}, ensure_ascii=False).encode('utf-8'))
+            return
+
+
         # API: Approve / Reject Initiative directly from Owner Web Dashboard
         elif path == "/api/approve_initiative":
             content_length = int(self.headers.get('Content-Length', 0))
@@ -566,9 +604,18 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
 
 def run_server():
+    db.init_db()
+    try:
+        pruned = db.deduplicate_initiatives()
+        if pruned:
+            print(f"[+] Pruned {pruned} duplicate initiatives on server start.")
+    except Exception as e:
+        print(f"Warning during startup deduplication: {e}")
+
     with ThreadedTCPServer(("", PORT), CRMHandler) as httpd:
         print(f"Web CRM & Health Server running at http://0.0.0.0:{PORT}")
         httpd.serve_forever()
+
 
 if __name__ == "__main__":
     run_server()

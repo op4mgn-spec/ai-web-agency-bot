@@ -77,6 +77,7 @@
         <div class="logo">👑 AI Web Agency | Дашборд Собственника</div>
         <div class="nav-links">
             <button onclick="generateHypothesesWeb()" class="btn-nav primary">💡 Сгенерировать гипотезы (Совет)</button>
+            <button onclick="deduplicateInitiativesWeb()" class="btn-nav" style="background: rgba(225, 29, 72, 0.2); border: 1px solid #e11d48; color: #fda4af;">🧹 Удалить дубликаты</button>
             <a href="/crm" class="btn-nav">📊 Воронка Лидов (CRM)</a>
             <button onclick="loadOwnerDashboard()" class="btn-nav">🔄 Обновить данные</button>
         </div>
@@ -218,7 +219,10 @@
                     <div class="init-card">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
                             <div class="init-title" style="margin-bottom: 0;">${item.title}</div>
-                            ${approvalBadge}
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                ${approvalBadge}
+                                <button onclick="deleteInitiativeWeb(${item.id})" title="Удалить инициативу" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 4px; opacity: 0.75;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.75'">🗑</button>
+                            </div>
                         </div>
                         <div class="init-desc">${item.description}</div>
                         <div class="init-kpi">🎯 KPI: ${item.kpi}</div>
@@ -299,7 +303,39 @@
             }
         }
 
+        async function deleteInitiativeWeb(id) {
+            if (!confirm(`Удалить эту инициативу (#${id})?`)) return;
+            try {
+                const res = await fetch('/api/delete_initiative', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                const d = await res.json();
+                if (d.status === 'ok') {
+                    await loadOwnerDashboard();
+                } else {
+                    alert('Ошибка: ' + (d.error || 'не удалось удалить'));
+                }
+            } catch (err) {
+                alert('Ошибка соединения: ' + err);
+            }
+        }
+
+        async function deduplicateInitiativesWeb() {
+            if (!confirm('Проверить список гипотез и автоматически удалить повторяющиеся дубликаты?')) return;
+            try {
+                const res = await fetch('/api/deduplicate_initiatives', { method: 'POST' });
+                const d = await res.json();
+                alert(`Дедупликация завершена! Удалено дубликатов: ${d.deleted_count}`);
+                await loadOwnerDashboard();
+            } catch (err) {
+                alert('Ошибка соединения: ' + err);
+            }
+        }
+
         loadOwnerDashboard();
+
     </script>
 </body>
 </html>

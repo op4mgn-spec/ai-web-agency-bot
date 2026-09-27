@@ -461,6 +461,43 @@ def get_initiative_by_id(initiative_id: int):
     conn.close()
     return dict(row) if row else None
 
+def delete_department_initiative(initiative_id: int):
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM department_initiatives WHERE id = ?", (initiative_id,))
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+def deduplicate_initiatives():
+    init_db()
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Step 1: Remove exact duplicates where department and title are identical (keep the lowest ID)
+    cursor.execute("""
+        DELETE FROM department_initiatives
+        WHERE id NOT IN (
+            SELECT MIN(id) FROM department_initiatives GROUP BY department, title
+        )
+    """)
+    removed_1 = cursor.rowcount
+
+    # Step 2: Remove test initiatives with duplicate or repetitive descriptions
+    cursor.execute("""
+        DELETE FROM department_initiatives
+        WHERE id NOT IN (
+            SELECT MIN(id) FROM department_initiatives GROUP BY description
+        )
+    """)
+    removed_2 = cursor.rowcount
+    
+    total_removed = removed_1 + removed_2
+    conn.commit()
+    conn.close()
+    return total_removed
+
 def update_initiative_status(initiative_id: int, new_status: str):
     init_db()
     conn = get_connection()
@@ -471,6 +508,7 @@ def update_initiative_status(initiative_id: int, new_status: str):
     """, (new_status, now_str, initiative_id))
     conn.commit()
     conn.close()
+
 
 def add_financial_transaction(transaction_type: str, category: str, amount: float, description: str):
     init_db()
