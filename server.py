@@ -198,6 +198,24 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(f.read())
             return
 
+        # API: Autonomous Dev Tasks Pending Queue
+        elif path == "/api/dev_tasks/pending":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            tasks = db.get_pending_autonomous_tasks()
+            self.wfile.write(json.dumps(tasks, ensure_ascii=False).encode("utf-8"))
+            return
+
+        # API: All Autonomous Dev Tasks List
+        elif path == "/api/dev_tasks/list":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            tasks = db.get_all_autonomous_tasks()
+            self.wfile.write(json.dumps(tasks, ensure_ascii=False).encode("utf-8"))
+            return
+
         # API: Owner Executive Dashboard Combined Data
         elif path == "/api/owner_dashboard":
             self.send_response(200)
@@ -466,6 +484,63 @@ class CRMHandler(http.server.SimpleHTTPRequestHandler):
                     generated_ids.append(init_id)
 
             self.wfile.write(json.dumps({"status": "ok", "generated_ids": generated_ids}).encode('utf-8'))
+            return
+
+        # API: Create Autonomous Dev Task
+        elif path == "/api/dev_tasks/create":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            chat_id = body.get('chat_id', 246189250)
+            prompt = body.get('prompt', '').strip()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+
+            if not prompt:
+                self.wfile.write(json.dumps({"error": "Missing prompt"}).encode('utf-8'))
+                return
+
+            task_id = db.create_autonomous_task(int(chat_id), prompt)
+            self.wfile.write(json.dumps({"status": "ok", "task_id": task_id}).encode('utf-8'))
+            return
+
+        # API: Complete / Update Autonomous Dev Task from Worker
+        elif path == "/api/dev_tasks/complete":
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+            task_id = body.get('id')
+            status = body.get('status', 'COMPLETED')
+            commit_hash = body.get('commit_hash', '')
+            files_changed = body.get('files_changed', '')
+            summary = body.get('summary', '')
+            error_msg = body.get('error_message', '')
+            chat_id = body.get('chat_id', 246189250)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+
+            if not task_id:
+                self.wfile.write(json.dumps({"error": "Missing task_id"}).encode('utf-8'))
+                return
+
+            db.update_autonomous_task(int(task_id), status, commit_hash, files_changed, summary, error_msg)
+
+            # Send Telegram notification directly to Owner via Bot!
+            if status == "COMPLETED":
+                tg_msg = (
+                    f"🚀 **Автономная задача #{task_id} ВЫПОЛНЕНА и ЗАДЕПЛОЕНА!**\n\n"
+                    f"📝 **Результат**: {summary}\n"
+                    f"📄 **Файлы**: `{files_changed}`\n"
+                    f"📌 **Коммит**: `{commit_hash}`\n\n"
+                    f"🌐 Сервер перезапущен с изменениями: https://ai-web-agency-bot.onrender.com"
+                )
+            else:
+                tg_msg = f"⚠️ **Ошибка при выполнении задачи #{task_id}**:\n`{error_msg}`"
+
+            webhook_engine.send_telegram_message(int(chat_id), tg_msg, reply_markup=webhook_engine.get_persistent_menu(True))
+            self.wfile.write(json.dumps({"status": "ok", "task_id": task_id}).encode('utf-8'))
             return
 
         self.send_response(404)

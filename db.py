@@ -158,6 +158,22 @@ def init_db():
             qa_score INTEGER DEFAULT 5
         )
     ''')
+
+    # Autonomous Dev Tasks Table (Antigravity Code Bridge)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS autonomous_dev_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER,
+            prompt TEXT,
+            status TEXT DEFAULT 'PENDING',
+            commit_hash TEXT DEFAULT '',
+            files_changed TEXT DEFAULT '',
+            summary TEXT DEFAULT '',
+            error_message TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP
+        )
+    ''')
     
     conn.commit()
     conn.close()
@@ -521,6 +537,45 @@ def get_owner_dashboard_data():
             "sla_pass_rate": 100.0 if delivered_leads > 0 else 100.0
         }
     }
+
+def create_autonomous_task(chat_id: int, prompt: str) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO autonomous_dev_tasks (chat_id, prompt, status) VALUES (?, ?, 'PENDING')",
+        (chat_id, prompt)
+    )
+    task_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return task_id
+
+def get_pending_autonomous_tasks():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM autonomous_dev_tasks WHERE status = 'PENDING' ORDER BY id ASC")
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
+
+def update_autonomous_task(task_id: int, status: str, commit_hash: str = '', files_changed: str = '', summary: str = '', error_message: str = ''):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE autonomous_dev_tasks 
+        SET status = ?, commit_hash = ?, files_changed = ?, summary = ?, error_message = ?, completed_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (status, commit_hash, files_changed, summary, error_message, task_id))
+    conn.commit()
+    conn.close()
+
+def get_all_autonomous_tasks(limit: int = 20):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM autonomous_dev_tasks ORDER BY id DESC LIMIT ?", (limit,))
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
 
 if __name__ == "__main__":
     init_db()

@@ -223,7 +223,7 @@ def get_persistent_menu(is_admin=False):
             "keyboard": [
                 [{"text": "💡 Гипотезы (Совет Директоров)"}, {"text": "📋 Задачи на утверждение"}],
                 [{"text": "👑 Дашборд Собственника (P&L)"}, {"text": "📊 CRM Воронка Лидов"}],
-                [{"text": "🔑 Настройки API & Ключи"}]
+                [{"text": "💻 Dev Задачи (Автономный мост)"}, {"text": "🔑 Настройки API & Ключи"}]
             ],
             "resize_keyboard": True,
             "is_persistent": True
@@ -285,6 +285,20 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
             for d in ["SALES", "PRODUCT", "FINANCE", "FULFILLMENT"]:
                 executive_ai_engine.generate_and_submit_new_hypothesis(d)
             executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
+            return
+
+        if data == "show_dev_tasks":
+            tasks = db.get_all_autonomous_tasks(5)
+            if not tasks:
+                send_telegram_message(chat_id, "ℹ️ Нет зарегистрированных dev-задач. Напишите любое пожелание по коду прямо в чат (например: `Добавь калькулятор рассрочки`)!")
+            else:
+                lines = ["💻 **Очередь автономных задач Antigravity**:\n"]
+                for t in tasks:
+                    status_emoji = {"PENDING": "⏳", "IN_PROGRESS": "⚙️", "COMPLETED": "✅", "FAILED": "❌"}.get(t.get("status"), "📌")
+                    lines.append(f"{status_emoji} **#{t['id']}** [{t.get('status')}]: {t.get('prompt')[:60]}...")
+                    if t.get("commit_hash"):
+                        lines.append(f"   └ Коммит: `{t['commit_hash']}`")
+                send_telegram_message(chat_id, "\n".join(lines))
             return
 
         if data == "start_brief":
@@ -575,6 +589,52 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
                 f"`/setkey AIzaSyВашНовыйКлюч`"
             )
             send_telegram_message(chat_id, msg)
+            return
+
+        # Owner Persistent Button: Dev Tasks & Bridge Queue
+        if text.lower() in ["💻 dev задачи (автономный мост)", "dev задачи", "мост", "/dev_list"]:
+            tasks = db.get_all_autonomous_tasks(5)
+            if not tasks:
+                send_telegram_message(chat_id, "ℹ️ Нет зарегистрированных dev-задач. Напишите любое пожелание по коду прямо в чат (например: `Добавь калькулятор рассрочки`)!")
+            else:
+                lines = ["💻 **Очередь автономных задач Antigravity**:\n"]
+                for t in tasks:
+                    status_emoji = {"PENDING": "⏳", "IN_PROGRESS": "⚙️", "COMPLETED": "✅", "FAILED": "❌"}.get(t.get("status"), "📌")
+                    lines.append(f"{status_emoji} **#{t['id']}** [{t.get('status')}]: {t.get('prompt')[:60]}...")
+                    if t.get("commit_hash"):
+                        lines.append(f"   └ Коммит: `{t['commit_hash']}`")
+                send_telegram_message(chat_id, "\n".join(lines))
+            return
+
+        # Autonomous Dev Task Creation from Owner text or voice!
+        is_dev_task = text.startswith(("/dev", "/code", "/task", "/make")) or (is_admin and any(kw in text.lower() for kw in [
+            "добавь", "измени", "сделай", "поменяй", "переделай", "напиши код", "создай", "обнови", "верстк", "кнопк", "калькулятор", "цену", "демо"
+        ]))
+
+        if is_admin and is_dev_task:
+            task_clean = text
+            for pfx in ["/dev", "/code", "/task", "/make"]:
+                if task_clean.startswith(pfx):
+                    task_clean = task_clean[len(pfx):].strip()
+                    break
+
+            task_id = db.create_autonomous_task(chat_id, task_clean)
+            reply = (
+                f"⚡️ **Задача принята в автономный конвейер разработки Antigravity (#{task_id})!**\n\n"
+                f"📝 **Текст задания**: «{task_clean}»\n"
+                f"⚙️ **Статус**: `PENDING (В очереди на исполнение)`\n\n"
+                f"🤖 Локальный агент Antigravity приступает к:\n"
+                f"1. Чтению файлов кодовой базы и планированию изменений\n"
+                f"2. Автоматическому написанию и верификации кода\n"
+                f"3. Git-коммиту и пушу в ветку main\n"
+                f"4. Автоматическому перезапуску на Render\n\n"
+                f"Как только код будет залит на продакшн, вы сразу получите отчет прямо сюда! 🚀"
+            )
+            kbd = {"inline_keyboard": [
+                [{"text": "📋 Список Dev-задач", "callback_data": "show_dev_tasks"}],
+                [{"text": "👑 Дашборд P&L", "url": "https://ai-web-agency-bot.onrender.com/owner"}]
+            ]}
+            send_telegram_message(chat_id, reply, reply_markup=kbd)
             return
 
         # Item 7: Dynamic Price Calculator Command & Persistent Button
