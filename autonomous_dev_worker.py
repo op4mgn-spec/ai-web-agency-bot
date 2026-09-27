@@ -4,6 +4,8 @@ import time
 import json
 import subprocess
 import requests
+from dotenv import load_dotenv
+load_dotenv()
 import db
 
 if sys.stdout:
@@ -55,50 +57,29 @@ def execute_dev_task(task):
     prompt_lower = prompt.lower()
 
     try:
-        # Check if we should route to Gemini LLM for comprehensive reasoning
-        is_complex = len(prompt.split()) > 5 or any(w in prompt_lower for w in ["перезапусти", "сгенерируй", "напиши", "логик", "правил", "на будущее", "автоматиз", "интеграц", "если"])
+        # 1. Intercept executive menu buttons if they were queued
+        if any(w in prompt_lower for w in ["задачи на утверждение", "утверждение"]):
+            log(f"Intercepted menu button 'Задачи на утверждение' for task #{task_id}")
+            import executive_ai_engine
+            count = executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
+            summary = f"Карточки гипотез ({count} шт.) отправлены Собственнику в Telegram на утверждение."
+            db.update_autonomous_task(task_id, "COMPLETED", summary=summary)
+            try:
+                requests.post(f"{RENDER_URL.rstrip('/')}/api/dev_tasks/complete", json={
+                    "id": task_id, "chat_id": chat_id, "status": "COMPLETED", "summary": summary
+                }, timeout=5)
+            except Exception:
+                pass
+            return
 
-        if key and is_complex:
-            log(f"🧠 Invoking Gemini LLM for comprehensive task #{task_id}: '{prompt}'")
-            import webhook_engine
-            llm_prompt = f"""
-Ты — автономный Senior Python разработчик и системный архитектор проекта AI Web Agency.
-В твоем распоряжении модули проекта:
-- `db.py`: содержит get_connection(), init_db(), get_department_initiatives(), add_department_initiative_with_approval(), deduplicate_initiatives(), delete_department_initiative(id), get_all_leads_crm(), get_owner_dashboard_data()
-- `executive_ai_engine.py`: содержит generate_and_submit_new_hypothesis(department), DEPARTMENT_ROLES
-- `server.py`, `webhook_engine.py`, `owner_dashboard.html`, `crm_dashboard.html`
+        if any(w in prompt_lower for w in ["настройки api", "настройки ключей"]):
+            log(f"Intercepted menu button 'Настройки API' for task #{task_id}")
+            summary = "Информация по ключам API отображена."
+            db.update_autonomous_task(task_id, "COMPLETED", summary=summary)
+            return
 
-Собственник поставил задачу в Telegram:
-«{prompt}»
-
-Напиши ОДИН чистый, надежный Python-скрипт, который выполнит требуемые изменения (выполнит нужные SQL-запросы в db, сгенерирует гипотезы, отредактирует нужные файлы проекта и т.д.).
-Скрипт должен вывести в stdout (через print) краткий человекопонятный отчет о том, ЧТО именно было сделано.
-
-ВАЖНО:
-- Верни ТОЛЬКО код скрипта внутри блока ```python ... ```.
-- Не используй сторонние библиотеки, только стандартные модули Python и db / executive_ai_engine / sqlite3.
-"""
-            ai_resp, err = webhook_engine.safe_generate_ai(llm_prompt)
-            if ai_resp and "```python" in ai_resp:
-                code_block = ai_resp.split("```python")[1].split("```")[0].strip()
-                scratch_file = os.path.join(repo_dir, f"_auto_exec_{task_id}.py")
-                with open(scratch_file, "w", encoding="utf-8") as f:
-                    f.write(code_block)
-                res_code, res_out, res_err = run_cmd([sys.executable, scratch_file], cwd=repo_dir)
-                try:
-                    os.remove(scratch_file)
-                except Exception:
-                    pass
-                if res_code == 0:
-                    files_modified.append("agency.db")
-                    summary = f"{res_out.strip() if res_out else 'Изменения успешно применены ИИ-агентом.'}"
-                else:
-                    raise Exception(f"Ошибка выполнения сгенерированного кода: {res_err}")
-            else:
-                raise Exception(f"LLM не смог сгенерировать исполняемый план: {err or ai_resp[:100]}")
-
-        # Case 1: Deduplication of hypotheses / tasks / initiatives (short command)
-        elif any(w in prompt_lower for w in ["дубликат", "дубли", "дедупликац"]):
+        # 2. Fast Shortcut: Deduplication
+        if any(w in prompt_lower for w in ["дубликат", "дубли", "дедупликац"]) and len(prompt.split()) <= 6:
             log(f"Executing hypothesis deduplication for task #{task_id}")
             deleted_count = db.deduplicate_initiatives()
 
@@ -120,35 +101,8 @@ def execute_dev_task(task):
             files_modified.append("agency.db")
             summary = f"База данных успешно очищена: удалено {deleted_count} дубликатов гипотез. Список синхронизирован в CRM и дашборде Собственника."
 
-        # Case 2: Delete specific hypothesis or initiative by ID or phrase (short command)
-        elif any(w in prompt_lower for w in ["удали", "стереть", "убрать", "закрыть"]):
-            log(f"Executing targeted deletion for task #{task_id}")
-            conn = db.get_connection()
-            c = conn.cursor()
-            d_count = 0
-            if "алгоритм" in prompt_lower or "отклик" in prompt_lower:
-                c.execute("DELETE FROM department_initiatives WHERE description LIKE '%автоматизации откликов%' OR title LIKE '%автоматизации откликов%'")
-                d_count = c.rowcount
-            else:
-                import re
-                ids = re.findall(r'\b\d+\b', prompt)
-                for item_id in ids:
-                    c.execute("DELETE FROM department_initiatives WHERE id = ?", (int(item_id),))
-                    d_count += c.rowcount
-            conn.commit()
-            conn.close()
-
-            # Immediate cloud sync
-            try:
-                requests.post(f"{RENDER_URL.rstrip('/')}/api/deduplicate_initiatives", timeout=5)
-            except Exception:
-                pass
-
-            files_modified.append("agency.db")
-            summary = f"Удалено {d_count} задач/гипотез из базы данных и дашборда Собственника."
-
-        # Case 3: Price modifications across all files
-        elif "цен" in prompt_lower or "руб" in prompt_lower or "стоимост" in prompt_lower or "прайс" in prompt_lower:
+        # 3. Fast Shortcut: Price change
+        elif ("цен" in prompt_lower or "руб" in prompt_lower or "стоимост" in prompt_lower or "прайс" in prompt_lower) and len(prompt.split()) <= 6:
             target_files = ["webhook_engine.py", "server.py", "seed_crm_demo_data.py"]
             import re
             numbers = re.findall(r'\b\d{1,3}(?:\s?\d{3})*\b', prompt)
@@ -165,8 +119,8 @@ def execute_dev_task(task):
                         files_modified.append(fn)
             summary = f"Обновлена базовая стоимость разработки в скриптах бота и CRM на {new_price} руб."
 
-        # Case 4: Demo sites modifications or additions
-        elif "демо" in prompt_lower or "html" in prompt_lower or "сайт" in prompt_lower or "верстк" in prompt_lower:
+        # 4. Fast Shortcut: Simple Demo site
+        elif ("демо" in prompt_lower or "html" in prompt_lower or "сайт" in prompt_lower or "верстк" in prompt_lower) and len(prompt.split()) <= 6:
             demo_dir = os.path.join(repo_dir, "generated_sites")
             os.makedirs(demo_dir, exist_ok=True)
             demo_filename = f"demo_task_{task_id}.html"
@@ -200,9 +154,50 @@ def execute_dev_task(task):
             files_modified.append(f"generated_sites/{demo_filename}")
             summary = f"Сгенерирован и опубликован новый адаптивный сайт по задаче: «{prompt}»"
 
-        # Case 5: Fallback for unsupported tasks without LLM key
+        # 5. Gemini LLM for ALL other tasks!
+        elif key:
+            log(f"🧠 Invoking Gemini LLM for task #{task_id}: '{prompt}'")
+            import webhook_engine
+            llm_prompt = f"""
+Ты — автономный Senior Python разработчик и системный архитектор проекта AI Web Agency.
+В твоем распоряжении модули проекта:
+- `db.py`: содержит get_connection(), init_db(), get_department_initiatives(), add_department_initiative_with_approval(), deduplicate_initiatives(), delete_department_initiative(id), get_all_leads_crm(), get_owner_dashboard_data()
+- `executive_ai_engine.py`: содержит generate_and_submit_new_hypothesis(department), DEPARTMENT_ROLES, resend_pending_approvals_to_owner(chat_id)
+- `server.py`, `webhook_engine.py`, `owner_dashboard.html`, `crm_dashboard.html`
+
+Собственник поставил задачу в Telegram:
+«{prompt}»
+
+Напиши ОДИН чистый, надежный Python-скрипт, который выполнит требуемые изменения (выполнит нужные SQL-запросы в db, сгенерирует гипотезы, отредактирует нужные файлы проекта и т.д.).
+Скрипт должен вывести в stdout (через print) краткий человекопонятный отчет о том, ЧТО именно было сделано.
+
+ВАЖНО:
+- Верни ТОЛЬКО код скрипта внутри блока ```python ... ```.
+- Не используй сторонние библиотеки, только стандартные модули Python и db / executive_ai_engine / sqlite3.
+"""
+            ai_resp, err = webhook_engine.safe_generate_ai(llm_prompt)
+            if ai_resp and "```python" in ai_resp:
+                code_block = ai_resp.split("```python")[1].split("```")[0].strip()
+                scratch_file = os.path.join(repo_dir, f"_auto_exec_{task_id}.py")
+                with open(scratch_file, "w", encoding="utf-8") as f:
+                    f.write(code_block)
+                res_code, res_out, res_err = run_cmd([sys.executable, scratch_file], cwd=repo_dir)
+                try:
+                    os.remove(scratch_file)
+                except Exception:
+                    pass
+                if res_code == 0:
+                    files_modified.append("agency.db")
+                    summary = f"{res_out.strip() if res_out else 'Изменения успешно применены ИИ-агентом.'}"
+                else:
+                    raise Exception(f"Ошибка выполнения сгенерированного кода: {res_err}")
+            else:
+                raise Exception(f"LLM не смог сгенерировать исполняемый план: {err or ai_resp[:100]}")
+
+        # 6. Fallback when no key is configured
         else:
-            raise Exception(f"Для произвольного написания нового кода требуется подключить Gemini API ключ через команду /setkey в боте. Либо сформулируйте команду точнее (например: 'удали дубликаты', 'измени цену на 12000').")
+            raise Exception("Для произвольного написания нового кода требуется подключить Gemini API ключ через команду /setkey в боте.")
+
 
         # Step 3: Verify Python code integrity
         py_files = [f for f in files_modified if f.endswith(".py")]

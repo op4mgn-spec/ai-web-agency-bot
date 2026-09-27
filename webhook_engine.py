@@ -587,7 +587,7 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
             return
 
         # Owner Persistent Button: Pending Approvals Queue
-        if text in ["📋 задачи на утверждение", "задачи на утверждение", "одобрить гипотезы"]:
+        if text.lower() in ["📋 задачи на утверждение", "задачи на утверждение", "одобрить гипотезы", "/approvals", "утверждение"]:
             import executive_ai_engine
             count = executive_ai_engine.resend_pending_approvals_to_owner(chat_id)
             if count == 0:
@@ -595,7 +595,7 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
             return
 
         # Owner Persistent Button: API Settings & Keys
-        if text in ["🔑 настройки api & ключи", "настройки ключей", "api ключи"]:
+        if text.lower() in ["🔑 настройки api & ключи", "настройки ключей", "api ключи", "настройки api", "/settings"]:
             current_key = os.getenv("GEMINI_API_KEY") or db.get_setting("GEMINI_API_KEY")
             mask = f"`{current_key[:8]}...{current_key[-4:]}`" if current_key and len(current_key) > 12 else "⚠️ Не настроен"
             msg = (
@@ -607,6 +607,7 @@ def _do_process_telegram_update(update_data, bot_mode="auto"):
             )
             send_telegram_message(chat_id, msg)
             return
+
 
         # Owner Persistent Button: Dev Tasks & Bridge Queue
         if text.lower() in ["💻 dev задачи (автономный мост)", "dev задачи", "мост", "/dev_list"]:
