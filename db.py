@@ -692,3 +692,14 @@ def get_all_autonomous_tasks(limit: int = 20):
 if __name__ == "__main__":
     init_db()
     print("Database updated and auto-migrated.")
+
+def update_department_initiative(id, title, description, kpi, hypothesis_impact):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE department_initiatives 
+        SET title = ?, description = ?, kpi = ?, hypothesis_impact = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    ''', (title, description, kpi, hypothesis_impact, id))
+    conn.commit()
+    conn.close()
