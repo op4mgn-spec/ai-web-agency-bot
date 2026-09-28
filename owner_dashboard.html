@@ -396,5 +396,16 @@
         loadOwnerDashboard();
 
     </script>
-</body>
+<script>
+    function editInitiative(id) {
+        const newResult = prompt("Введите обновленный результат выполнения:");
+        if (newResult) {
+            fetch('/api/update_initiative', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: id, executed_results: newResult})
+            }).then(() => location.reload());
+        }
+    }
+    </script></body>
 </html>
